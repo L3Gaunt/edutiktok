@@ -1,33 +1,61 @@
 # Firebase Auth Integration Checklist
 
-- [x] Install and configure Firebase Auth package for Flutter. ([1](https://docs.flutter.dev/data-and-backend/firebase))
-- [x] Create a new Firebase project (if none exists).  
-- [x] Prepare the app for Firebase integration:  
-  - [x] Add the Firebase SDK to the project.  
-  - [x] Run firebase init or flutterfire configure to set up the project.
+- [ ] Set up testing environment:
+  - [ ] Install test dependencies:
+    - [ ] firebase_auth_mocks
+    - [ ] google_sign_in_mocks
+    - [ ] integration_test
+  - [ ] Configure test Firebase project:
+    - [ ] Create separate test project in Firebase Console
+    - [ ] Configure test credentials
+    - [ ] Set up Firebase Auth Emulator
+  - [ ] Set up test structure:
+    - [ ] Create integration_test directory
+    - [ ] Set up mock auth providers
+    - [ ] Create test helper utilities
+
+- [x] Install and configure base packages:
+  - [x] Install and configure Firebase Auth package for Flutter
+  - [x] Create a new Firebase project
+  - [x] Add the Firebase SDK to the project
+  - [x] Run firebase init or flutterfire configure
   - [x] Add google-services.json to .gitignore
-- [ ] Set up FirebaseUI Auth:
+
+- [x] Set up FirebaseUI Auth:
   - [x] Install firebase_ui_auth package
-  - [ ] Add SocialIcons font to pubspec.yaml for profile screens
-  - [ ] Initialize FirebaseUI Auth in the app
-- [ ] Implement Email/Password authentication:  
-  - [ ] Enable Email/Password sign-in in Firebase Console
-  - [ ] Add SignInScreen to your app
-  - [ ] Add profile screen (optional)
-  - [ ] Customize theme to match your app (optional)
-- [ ] Implement Email Link authentication (optional):  
-  - [ ] Enable Email Link sign-in in Firebase console
-  - [ ] Configure EmailLinkAuthProvider
+  - [x] Add SocialIcons font to pubspec.yaml for profile screens
+  - [x] Initialize FirebaseUI Auth in the app
+
+- [x] Implement Email/Password authentication:  
+  - [x] Enable Email/Password sign-in in Firebase Console
+  - [x] Add SignInScreen to your app
+  - [x] Add profile screen
+  - [x] Customize theme to match your app
+
+- [x] Implement GitHub OAuth:  
+  - [x] Enable GitHub sign-in in Firebase Console
+  - [x] Create GitHub OAuth App and get credentials
+  - [x] Configure OAuthProvider with GitHub
+
+- [ ] Implement Email Link authentication:  
+  - [x] Enable Email Link sign-in in Firebase console
+  - [x] Configure EmailLinkAuthProvider
   - [ ] Add deep link handling
-- [ ] Implement GitHub OAuth (optional):  
-  - [ ] Create GitHub OAuth App and get credentials
-  - [ ] Enable GitHub sign-in in Firebase Console
-  - [ ] Configure OAuthProvider with GitHub
-- [ ] Set up testing:  
-  - [ ] Test sign-in flow
-  - [ ] Test sign-out flow
-  - [ ] Test error states
-  - [ ] Test deep links (if using Email Link auth)
+
+- [ ] Test all authentication flows:
+  - [ ] Unit tests with mocks:
+    - [ ] Test sign-in methods independently
+    - [ ] Test auth state changes
+    - [ ] Test error handling
+  - [ ] Widget tests:
+    - [ ] Test UI components with mock auth
+    - [ ] Test navigation flows
+    - [ ] Test error states display
+  - [ ] Integration tests:
+    - [ ] Test full sign-in flows
+    - [ ] Test sign-out flows
+    - [ ] Test deep links
+    - [ ] Test on real Android devices
 
 ---
 
@@ -37,5 +65,4 @@
 - Test the authentication flow on real devices before releasing
 - FirebaseUI Auth provides a standard Material Design interface - make sure it matches your app's design language
 - Some authentication methods have platform limitations (but all work on Android)
-
-https://firebase.google.com/docs/auth/android/firebaseui?authuser=0
+- Use Firebase Auth Emulator for local testing when possible
