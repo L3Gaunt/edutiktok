@@ -1,0 +1,32 @@
+# Firebase App Distribution Setup
+
+- [ ] Install and configure the Firebase CLI
+  - [ ] Ensure you are logged in to Google via the CLI (run: firebase login)
+  - [ ] Make sure your CLI is up to date (run: firebase --version)
+
+- [ ] Configure Firebase App Distribution in your project
+  - [ ] Add the Firebase App Distribution Gradle plugin to the android/build.gradle dependencies
+  - [ ] Apply the plugin in android/app/build.gradle
+  - [ ] Ensure google-services plugin is also applied
+
+- [ ] Obtain necessary credentials for distribution
+  - [ ] Confirm you have a Google service account or the correct user permissions in the Firebase console
+  - [ ] (Optional) If using service account authentication, configure a service account key locally
+
+- [ ] Create tester groups in the Firebase console
+  - [ ] Add testers' emails or configure tester groups
+
+- [ ] Set up distribution for Android build
+  - [ ] Generate an AAB or APK for release (gradle task: assembleRelease or bundleRelease)
+  - [ ] Run the Firebase App Distribution upload task (e.g., firebase appdistribution:distribute or gradlew appDistributionUploadRelease)
+
+- [ ] (Optional) Automate distribution flow
+  - [ ] Integrate with a CI tool (e.g., GitHub Actions, Bitrise, etc.)
+  - [ ] Configure build and distribution steps in your CI pipeline
+
+---
+
+## Warnings
+- Make sure your service account key (if used) and google-services.json are not committed to version control  
+- Verify testers receive the distribution invite and that they can install the app successfully  
+- Test your release on real devices before rolling out to larger groups or production 
