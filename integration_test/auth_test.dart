@@ -45,6 +45,8 @@ void main() {
   late FirebaseAuth auth;
   const testEmail = 'test@example.com';
   const testPassword = 'password123';
+  const wrongPassword = 'wrongpassword';
+  const nonExistentEmail = 'nonexistent@example.com';
 
   setUp(() async {
     await Firebase.initializeApp();
@@ -77,33 +79,167 @@ void main() {
   });
 
   group('Authentication Tests', () {
-    testWidgets('Basic auth flow test', (WidgetTester tester) async {
-      // Build the app with auth instance
+    testWidgets('Successful sign in and sign out flow', (WidgetTester tester) async {
       await tester.pumpWidget(TestApp(auth: auth));
       await tester.pumpAndSettle();
 
-      // Verify we start at the sign-in screen
       expect(find.byType(SignInScreen), findsOneWidget);
       expect(find.text('Welcome to EduTikTok!'), findsNothing);
 
-      // Sign in with the test account
       await auth.signInWithEmailAndPassword(
         email: testEmail,
         password: testPassword,
       );
-
-      // Pump the widget tree to reflect the auth state change
       await tester.pumpAndSettle();
 
-      // Verify we're on the home screen
+      expect(find.text('Welcome to EduTikTok!'), findsOneWidget);
+
+      await auth.signOut();
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SignInScreen), findsOneWidget);
+    });
+
+    testWidgets('Sign in with wrong password fails', (WidgetTester tester) async {
+      await tester.pumpWidget(TestApp(auth: auth));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SignInScreen), findsOneWidget);
+
+      try {
+        await auth.signInWithEmailAndPassword(
+          email: testEmail,
+          password: wrongPassword,
+        );
+        fail('Should have thrown an exception');
+      } catch (e) {
+        expect(e, isA<FirebaseAuthException>());
+        expect((e as FirebaseAuthException).code, 'wrong-password');
+      }
+
+      await tester.pumpAndSettle();
+      expect(find.byType(SignInScreen), findsOneWidget);
+      expect(find.text('Welcome to EduTikTok!'), findsNothing);
+    });
+
+    testWidgets('Sign in with non-existent email fails', (WidgetTester tester) async {
+      await tester.pumpWidget(TestApp(auth: auth));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SignInScreen), findsOneWidget);
+
+      try {
+        await auth.signInWithEmailAndPassword(
+          email: nonExistentEmail,
+          password: testPassword,
+        );
+        fail('Should have thrown an exception');
+      } catch (e) {
+        expect(e, isA<FirebaseAuthException>());
+        expect((e as FirebaseAuthException).code, 'user-not-found');
+      }
+
+      await tester.pumpAndSettle();
+      expect(find.byType(SignInScreen), findsOneWidget);
+      expect(find.text('Welcome to EduTikTok!'), findsNothing);
+    });
+
+    testWidgets('Create new account flow', (WidgetTester tester) async {
+      final newEmail = 'newuser@example.com';
+      final newPassword = 'newpassword123';
+
+      await tester.pumpWidget(TestApp(auth: auth));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SignInScreen), findsOneWidget);
+
+      // Create new account
+      await auth.createUserWithEmailAndPassword(
+        email: newEmail,
+        password: newPassword,
+      );
+      await tester.pumpAndSettle();
+
+      // Should be signed in automatically after account creation
       expect(find.text('Welcome to EduTikTok!'), findsOneWidget);
 
       // Sign out
       await auth.signOut();
       await tester.pumpAndSettle();
 
-      // Verify we're back at the sign-in screen
+      // Sign in with new account
+      await auth.signInWithEmailAndPassword(
+        email: newEmail,
+        password: newPassword,
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Welcome to EduTikTok!'), findsOneWidget);
+    });
+
+    testWidgets('Create account with existing email fails', (WidgetTester tester) async {
+      await tester.pumpWidget(TestApp(auth: auth));
+      await tester.pumpAndSettle();
+
       expect(find.byType(SignInScreen), findsOneWidget);
+
+      try {
+        await auth.createUserWithEmailAndPassword(
+          email: testEmail,
+          password: testPassword,
+        );
+        fail('Should have thrown an exception');
+      } catch (e) {
+        expect(e, isA<FirebaseAuthException>());
+        expect((e as FirebaseAuthException).code, 'email-already-in-use');
+      }
+
+      await tester.pumpAndSettle();
+      expect(find.byType(SignInScreen), findsOneWidget);
+      expect(find.text('Welcome to EduTikTok!'), findsNothing);
+    });
+
+    testWidgets('Password reset flow', (WidgetTester tester) async {
+      await tester.pumpWidget(TestApp(auth: auth));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SignInScreen), findsOneWidget);
+
+      // Request password reset
+      await auth.sendPasswordResetEmail(email: testEmail);
+
+      // Verify we're still on sign in screen
+      expect(find.byType(SignInScreen), findsOneWidget);
+
+      // Try password reset for non-existent email
+      try {
+        await auth.sendPasswordResetEmail(email: nonExistentEmail);
+        fail('Should have thrown an exception');
+      } catch (e) {
+        expect(e, isA<FirebaseAuthException>());
+        expect((e as FirebaseAuthException).code, 'user-not-found');
+      }
+    });
+
+    testWidgets('Auth persistence test', (WidgetTester tester) async {
+      // First sign in
+      await tester.pumpWidget(TestApp(auth: auth));
+      await tester.pumpAndSettle();
+
+      await auth.signInWithEmailAndPassword(
+        email: testEmail,
+        password: testPassword,
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Welcome to EduTikTok!'), findsOneWidget);
+
+      // Rebuild app to simulate app restart
+      await tester.pumpWidget(TestApp(auth: auth));
+      await tester.pumpAndSettle();
+
+      // Should still be signed in
+      expect(find.text('Welcome to EduTikTok!'), findsOneWidget);
     });
   });
 } 
