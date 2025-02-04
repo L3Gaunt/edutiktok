@@ -55,7 +55,7 @@
     - [x] Test full sign-in flows
     - [x] Test sign-out flows
     - [ ] Test deep links
-    - [x] Test on real Android devices
+    - [ ] Test on real Android devices
 
 ---
 
