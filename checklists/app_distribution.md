@@ -14,7 +14,8 @@
   - [ ] (Optional) If using service account authentication, configure a service account key locally
 
 - [ ] Create tester groups in the Firebase console
-  - [ ] Add testers' emails or configure tester groups
+  - [ ] Add your own email address (or phone's Google account) as a tester
+  - [ ] Add any additional emails or configure tester groups
 
 - [ ] Set up distribution for Android build
   - [ ] Generate an AAB or APK for release (gradle task: assembleRelease or bundleRelease)
@@ -29,4 +30,4 @@
 ## Warnings
 - Make sure your service account key (if used) and google-services.json are not committed to version control  
 - Verify testers receive the distribution invite and that they can install the app successfully  
-- Test your release on real devices before rolling out to larger groups or production 
+- Test your release on real devices (including your own!) before rolling out to larger groups or production 
