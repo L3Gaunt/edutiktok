@@ -36,6 +36,13 @@ class VideoFeedScreen extends StatelessWidget {
             itemCount: videos.length,
             itemBuilder: (context, index) {
               final videoData = videos[index].data() as Map<String, dynamic>;
+              
+              // Preload the next video if it exists
+              if (index < videos.length - 1) {
+                final nextVideoData = videos[index + 1].data() as Map<String, dynamic>;
+                precacheNextVideo(nextVideoData['url']);
+              }
+              
               return VideoPlayerItem(
                 videoUrl: videoData['url'],
                 title: videoData['title'] ?? '',
@@ -47,6 +54,15 @@ class VideoFeedScreen extends StatelessWidget {
         },
       ),
     );
+  }
+
+  void precacheNextVideo(String url) {
+    VideoPlayerController.network(
+      url,
+      videoPlayerOptions: VideoPlayerOptions(
+        mixWithOthers: true,
+      ),
+    ).initialize();
   }
 }
 
@@ -71,6 +87,8 @@ class VideoPlayerItem extends StatefulWidget {
 class _VideoPlayerItemState extends State<VideoPlayerItem> {
   late VideoPlayerController _controller;
   bool _isInitialized = false;
+  bool _isBuffering = true;
+  double _bufferingProgress = 0.0;
 
   @override
   void initState() {
@@ -79,18 +97,65 @@ class _VideoPlayerItemState extends State<VideoPlayerItem> {
   }
 
   Future<void> _initializeVideo() async {
-    _controller = VideoPlayerController.network(widget.videoUrl);
+    _controller = VideoPlayerController.network(
+      widget.videoUrl,
+      videoPlayerOptions: VideoPlayerOptions(
+        mixWithOthers: true,
+      ),
+    );
+
     try {
       await _controller.initialize();
+      _controller.addListener(_videoListener);
       await _controller.setLooping(true);
-      setState(() => _isInitialized = true);
+      
+      // Start buffering the video
+      await _controller.play();
+      await _controller.pause();
+      
+      if (mounted) {
+        setState(() {
+          _isInitialized = true;
+          _isBuffering = false;
+        });
+      }
     } catch (e) {
       print('Error initializing video: $e');
+      if (mounted) {
+        setState(() {
+          _isBuffering = false;
+        });
+      }
+    }
+  }
+
+  void _videoListener() {
+    final value = _controller.value;
+    
+    // Check if video is buffering
+    if (value.isBuffering && mounted) {
+      setState(() {
+        _isBuffering = true;
+      });
+    } else if (!value.isBuffering && _isBuffering && mounted) {
+      setState(() {
+        _isBuffering = false;
+      });
+    }
+    
+    // Update buffering progress
+    if (value.buffered.isNotEmpty && mounted) {
+      final bufferEnd = value.buffered.last.end;
+      final duration = value.duration;
+      setState(() {
+        _bufferingProgress = bufferEnd.inMilliseconds / duration.inMilliseconds;
+      });
     }
   }
 
   @override
   void dispose() {
+    _controller.removeListener(_videoListener);
     _controller.dispose();
     super.dispose();
   }
@@ -122,6 +187,22 @@ class _VideoPlayerItemState extends State<VideoPlayerItem> {
             )
           else
             const Center(child: CircularProgressIndicator()),
+          
+          // Buffering indicator
+          if (_isBuffering)
+            Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(color: Colors.white),
+                  const SizedBox(height: 8),
+                  Text(
+                    '${(_bufferingProgress * 100).toStringAsFixed(0)}%',
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                ],
+              ),
+            ),
           
           // Video Info Overlay
           Positioned(
@@ -174,6 +255,19 @@ class _VideoPlayerItemState extends State<VideoPlayerItem> {
               ),
             ),
           ),
+          
+          // Buffering progress bar
+          if (_isBuffering)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: LinearProgressIndicator(
+                value: _bufferingProgress,
+                backgroundColor: Colors.grey.withOpacity(0.5),
+                valueColor: AlwaysStoppedAnimation<Color>(Colors.white.withOpacity(0.7)),
+              ),
+            ),
         ],
       ),
     );
