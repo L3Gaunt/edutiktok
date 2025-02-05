@@ -41,6 +41,8 @@ dependencies:
   provider: ^6.1.2
   firebase_storage: ^12.4.1
   image_picker: ^1.1.2
+  video_player: ^2.8.3
+  visibility_detector: ^0.4.0+2  # For auto-play/pause when videos enter/exit viewport
 
 dev_dependencies:
   flutter_test:
