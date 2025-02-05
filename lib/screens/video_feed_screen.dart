@@ -35,14 +35,9 @@ class VideoFeedScreen extends StatelessWidget {
           return PageView.builder(
             scrollDirection: Axis.vertical,
             itemCount: videos.length,
+            pageSnapping: true,
             itemBuilder: (context, index) {
               final videoData = videos[index].data() as Map<String, dynamic>;
-              
-              // Preload the next video if it exists
-              if (index < videos.length - 1) {
-                final nextVideoData = videos[index + 1].data() as Map<String, dynamic>;
-                precacheNextVideo(nextVideoData['url']);
-              }
               
               return VideoPlayerItem(
                 videoUrl: videoData['url'],
@@ -56,15 +51,6 @@ class VideoFeedScreen extends StatelessWidget {
         },
       ),
     );
-  }
-
-  void precacheNextVideo(String url) {
-    VideoPlayerController.network(
-      url,
-      videoPlayerOptions: VideoPlayerOptions(
-        mixWithOthers: true,
-      ),
-    ).initialize();
   }
 }
 
@@ -96,6 +82,7 @@ class _VideoPlayerItemState extends State<VideoPlayerItem> {
   final LikeService _likeService = LikeService();
   bool _isLiked = false;
   bool _isLikeLoading = false;
+  bool _isDisposed = false;
 
   @override
   void initState() {
@@ -143,23 +130,34 @@ class _VideoPlayerItemState extends State<VideoPlayerItem> {
   }
 
   Future<void> _initializeVideo() async {
-    _controller = VideoPlayerController.network(
-      widget.videoUrl,
-      videoPlayerOptions: VideoPlayerOptions(
-        mixWithOthers: true,
-      ),
-    );
-
+    if (_isDisposed) return;
+    
     try {
+      _controller = VideoPlayerController.network(
+        widget.videoUrl,
+        videoPlayerOptions: VideoPlayerOptions(
+          mixWithOthers: true,
+          allowBackgroundPlayback: false,
+        ),
+      );
+
+      _controller.addListener(() {
+        final error = _controller.value.errorDescription;
+        if (error != null) {
+          print('Video player error: $error');
+          _disposeController();
+          if (mounted) {
+            _reinitializeController();
+          }
+        }
+      });
+
       await _controller.initialize();
-      _controller.addListener(_videoListener);
-      await _controller.setLooping(true);
       
-      // Start buffering the video
-      await _controller.play();
-      await _controller.pause();
-      
-      if (mounted) {
+      if (mounted && !_isDisposed) {
+        _controller.addListener(_videoListener);
+        await _controller.setLooping(true);
+        
         setState(() {
           _isInitialized = true;
           _isBuffering = false;
@@ -167,11 +165,28 @@ class _VideoPlayerItemState extends State<VideoPlayerItem> {
       }
     } catch (e) {
       print('Error initializing video: $e');
-      if (mounted) {
+      if (mounted && !_isDisposed) {
         setState(() {
           _isBuffering = false;
+          _isInitialized = false;
         });
       }
+    }
+  }
+
+  void _disposeController() {
+    if (!_isDisposed) {
+      _controller.removeListener(_videoListener);
+      _controller.dispose();
+      _isDisposed = true;
+      _isInitialized = false;
+    }
+  }
+
+  void _reinitializeController() {
+    if (_isDisposed) {
+      _isDisposed = false;
+      _initializeVideo();
     }
   }
 
@@ -201,8 +216,7 @@ class _VideoPlayerItemState extends State<VideoPlayerItem> {
 
   @override
   void dispose() {
-    _controller.removeListener(_videoListener);
-    _controller.dispose();
+    _disposeController();
     super.dispose();
   }
 
@@ -211,16 +225,26 @@ class _VideoPlayerItemState extends State<VideoPlayerItem> {
     return VisibilityDetector(
       key: Key(widget.videoUrl),
       onVisibilityChanged: (info) {
-        if (info.visibleFraction > 0.5) {
-          _controller.play();
+        if (info.visibleFraction > 0.8) {
+          if (_isDisposed) {
+            _reinitializeController();
+          }
+          if (_isInitialized && !_controller.value.isPlaying) {
+            _controller.play();
+          }
         } else {
-          _controller.pause();
+          if (_isInitialized && _controller.value.isPlaying) {
+            _controller.pause();
+          }
+          if (info.visibleFraction < 0.2) {
+            _disposeController();
+          }
         }
       },
       child: Stack(
         fit: StackFit.expand,
         children: [
-          if (_isInitialized)
+          if (_isInitialized && !_isDisposed)
             GestureDetector(
               onTap: () {
                 setState(() {
@@ -233,7 +257,7 @@ class _VideoPlayerItemState extends State<VideoPlayerItem> {
               },
               child: VideoPlayer(_controller),
             ),
-          if (_isBuffering)
+          if (_isBuffering || !_isInitialized)
             const Center(
               child: CircularProgressIndicator(),
             ),

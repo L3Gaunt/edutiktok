@@ -1,0 +1,33 @@
+import 'package:flutter/material.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'firebase_options.dart';
+import 'my_app.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  // Read test credentials provided via --dart-define at runtime.
+  const testEmail = String.fromEnvironment('TEST_EMAIL', defaultValue: '');
+  const testPassword = String.fromEnvironment('TEST_PASSWORD', defaultValue: '');
+
+  // If credentials are provided, attempt to sign in automatically.
+  if (testEmail.isNotEmpty && testPassword.isNotEmpty) {
+    try {
+      // Optionally, you might want to try creating the user if they do not exist.
+      await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: testEmail,
+        password: testPassword,
+      );
+      print('Successfully signed in with $testEmail');
+    } catch (e) {
+      // Handle errors, e.g. user not found or wrong password.
+      print('Auto sign in failed for $testEmail: $e');
+    }
+  }
+
+  runApp(const MyApp());
+}
