@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:video_player/video_player.dart';
 import 'package:visibility_detector/visibility_detector.dart';
+import '../services/like_service.dart';
 
 class VideoFeedScreen extends StatelessWidget {
   const VideoFeedScreen({super.key});
@@ -48,6 +49,7 @@ class VideoFeedScreen extends StatelessWidget {
                 title: videoData['title'] ?? '',
                 likes: videoData['likes'] ?? 0,
                 views: videoData['views'] ?? 0,
+                videoId: videoData['id'] ?? '',
               );
             },
           );
@@ -71,6 +73,7 @@ class VideoPlayerItem extends StatefulWidget {
   final String title;
   final int likes;
   final int views;
+  final String videoId;
 
   const VideoPlayerItem({
     super.key,
@@ -78,6 +81,7 @@ class VideoPlayerItem extends StatefulWidget {
     required this.title,
     required this.likes,
     required this.views,
+    required this.videoId,
   });
 
   @override
@@ -89,11 +93,53 @@ class _VideoPlayerItemState extends State<VideoPlayerItem> {
   bool _isInitialized = false;
   bool _isBuffering = true;
   double _bufferingProgress = 0.0;
+  final LikeService _likeService = LikeService();
+  bool _isLiked = false;
+  bool _isLikeLoading = false;
 
   @override
   void initState() {
     super.initState();
     _initializeVideo();
+    _checkLikeStatus();
+  }
+
+  Future<void> _checkLikeStatus() async {
+    final isLiked = await _likeService.isVideoLiked(widget.videoId);
+    if (mounted) {
+      setState(() {
+        _isLiked = isLiked;
+      });
+    }
+  }
+
+  Future<void> _handleLikePress() async {
+    if (_isLikeLoading) return;
+
+    setState(() {
+      _isLikeLoading = true;
+    });
+
+    try {
+      final isLiked = await _likeService.toggleLike(widget.videoId);
+      if (mounted) {
+        setState(() {
+          _isLiked = isLiked;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(e.toString())),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLikeLoading = false;
+        });
+      }
+    }
   }
 
   Future<void> _initializeVideo() async {
@@ -177,97 +223,86 @@ class _VideoPlayerItemState extends State<VideoPlayerItem> {
           if (_isInitialized)
             GestureDetector(
               onTap: () {
-                if (_controller.value.isPlaying) {
-                  _controller.pause();
-                } else {
-                  _controller.play();
-                }
+                setState(() {
+                  if (_controller.value.isPlaying) {
+                    _controller.pause();
+                  } else {
+                    _controller.play();
+                  }
+                });
               },
               child: VideoPlayer(_controller),
-            )
-          else
-            const Center(child: CircularProgressIndicator()),
-          
-          // Buffering indicator
-          if (_isBuffering)
-            Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const CircularProgressIndicator(color: Colors.white),
-                  const SizedBox(height: 8),
-                  Text(
-                    '${(_bufferingProgress * 100).toStringAsFixed(0)}%',
-                    style: const TextStyle(color: Colors.white),
-                  ),
-                ],
-              ),
             ),
-          
-          // Video Info Overlay
+          if (_isBuffering)
+            const Center(
+              child: CircularProgressIndicator(),
+            ),
           Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: Container(
-              padding: const EdgeInsets.all(16.0),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.bottomCenter,
-                  end: Alignment.topCenter,
-                  colors: [
-                    Colors.black.withOpacity(0.7),
-                    Colors.transparent,
-                  ],
-                ),
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (widget.title.isNotEmpty)
-                    Text(
-                      widget.title,
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      Icon(Icons.favorite, color: Colors.red.shade400, size: 20),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${widget.likes}',
-                        style: const TextStyle(color: Colors.white),
-                      ),
-                      const SizedBox(width: 16),
-                      const Icon(Icons.remove_red_eye, color: Colors.white, size: 20),
-                      const SizedBox(width: 4),
-                      Text(
-                        '${widget.views}',
-                        style: const TextStyle(color: Colors.white),
-                      ),
-                    ],
+            right: 16,
+            bottom: 100,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    shape: BoxShape.circle,
                   ),
-                ],
-              ),
+                  child: IconButton(
+                    onPressed: _handleLikePress,
+                    iconSize: 40,
+                    padding: const EdgeInsets.all(12),
+                    icon: Icon(
+                      _isLiked ? Icons.favorite : Icons.favorite_border,
+                      color: _isLiked ? Colors.red : Colors.white,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${widget.likes}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
-          
-          // Buffering progress bar
-          if (_isBuffering)
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: LinearProgressIndicator(
-                value: _bufferingProgress,
-                backgroundColor: Colors.grey.withOpacity(0.5),
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.white.withOpacity(0.7)),
-              ),
+          Positioned(
+            left: 16,
+            bottom: 16,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  widget.title,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  '${widget.views} views',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
             ),
+          ),
         ],
       ),
     );

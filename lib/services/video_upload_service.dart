@@ -47,14 +47,19 @@ class VideoUploadService {
       final snapshot = await uploadTask;
       final downloadUrl = await snapshot.ref.getDownloadURL();
       
-      // Store metadata in Firestore
-      await _firestore.collection('videos').add({
+      // Store metadata in Firestore with auto-generated ID
+      final docRef = await _firestore.collection('videos').add({
         'url': downloadUrl,
         'userId': userId,
         'timestamp': timestamp,
         'title': title,
         'likes': 0,
         'views': 0,
+      });
+      
+      // Update the document with its ID
+      await docRef.update({
+        'id': docRef.id,
       });
       
       return downloadUrl;

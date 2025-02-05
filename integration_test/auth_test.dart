@@ -51,22 +51,16 @@ void main() {
   setUp(() async {
     await Firebase.initializeApp();
     
-    // Get the auth instance
     auth = FirebaseAuth.instance;
-    
-    // Connect to the Firebase Auth Emulator
     await auth.useAuthEmulator('localhost', 9099);
 
-    // Configure Firebase UI Auth providers
     FirebaseUIAuth.configureProviders([
       EmailAuthProvider(),
     ]);
 
-    // Sign out before each test
     await auth.signOut();
 
     try {
-      // Try to create a test user
       await auth.createUserWithEmailAndPassword(
         email: testEmail,
         password: testPassword,
@@ -74,7 +68,6 @@ void main() {
     } catch (e) {
       // User might already exist, that's fine
     }
-    // Make sure we're signed out after creating the user
     await auth.signOut();
   });
 
@@ -83,20 +76,27 @@ void main() {
       await tester.pumpWidget(TestApp(auth: auth));
       await tester.pumpAndSettle();
 
+      // Initially should show sign in screen
       expect(find.byType(SignInScreen), findsOneWidget);
-      expect(find.text('Welcome to EduTikTok!'), findsNothing);
 
+      // Sign in
       await auth.signInWithEmailAndPassword(
         email: testEmail,
         password: testPassword,
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Welcome to EduTikTok!'), findsOneWidget);
+      // Should show home page with navigation bar
+      expect(find.byType(NavigationBar), findsOneWidget);
+      expect(find.text('Feed'), findsOneWidget);
+      expect(find.text('Upload'), findsOneWidget);
+      expect(find.text('Profile'), findsOneWidget);
 
+      // Sign out
       await auth.signOut();
       await tester.pumpAndSettle();
 
+      // Should return to sign in screen
       expect(find.byType(SignInScreen), findsOneWidget);
     });
 
@@ -119,7 +119,7 @@ void main() {
 
       await tester.pumpAndSettle();
       expect(find.byType(SignInScreen), findsOneWidget);
-      expect(find.text('Welcome to EduTikTok!'), findsNothing);
+      expect(find.byType(NavigationBar), findsNothing);
     });
 
     testWidgets('Sign in with non-existent email fails', (WidgetTester tester) async {
@@ -141,11 +141,11 @@ void main() {
 
       await tester.pumpAndSettle();
       expect(find.byType(SignInScreen), findsOneWidget);
-      expect(find.text('Welcome to EduTikTok!'), findsNothing);
+      expect(find.byType(NavigationBar), findsNothing);
     });
 
     testWidgets('Create new account flow', (WidgetTester tester) async {
-      final newEmail = 'newuser@example.com';
+      final newEmail = 'newuser${DateTime.now().millisecondsSinceEpoch}@example.com';
       final newPassword = 'newpassword123';
 
       await tester.pumpWidget(TestApp(auth: auth));
@@ -160,8 +160,9 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Should be signed in automatically after account creation
-      expect(find.text('Welcome to EduTikTok!'), findsOneWidget);
+      // Should show home page with navigation bar
+      expect(find.byType(NavigationBar), findsOneWidget);
+      expect(find.text('Feed'), findsOneWidget);
 
       // Sign out
       await auth.signOut();
@@ -174,7 +175,8 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Welcome to EduTikTok!'), findsOneWidget);
+      expect(find.byType(NavigationBar), findsOneWidget);
+      expect(find.text('Feed'), findsOneWidget);
     });
 
     testWidgets('Create account with existing email fails', (WidgetTester tester) async {
@@ -196,7 +198,7 @@ void main() {
 
       await tester.pumpAndSettle();
       expect(find.byType(SignInScreen), findsOneWidget);
-      expect(find.text('Welcome to EduTikTok!'), findsNothing);
+      expect(find.byType(NavigationBar), findsNothing);
     });
 
     testWidgets('Password reset flow', (WidgetTester tester) async {
@@ -232,14 +234,17 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      expect(find.text('Welcome to EduTikTok!'), findsOneWidget);
+      // Should show home page with navigation bar
+      expect(find.byType(NavigationBar), findsOneWidget);
+      expect(find.text('Feed'), findsOneWidget);
 
       // Rebuild app to simulate app restart
       await tester.pumpWidget(TestApp(auth: auth));
       await tester.pumpAndSettle();
 
-      // Should still be signed in
-      expect(find.text('Welcome to EduTikTok!'), findsOneWidget);
+      // Should still be signed in and show home page
+      expect(find.byType(NavigationBar), findsOneWidget);
+      expect(find.text('Feed'), findsOneWidget);
     });
   });
 } 
