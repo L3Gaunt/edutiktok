@@ -3,6 +3,7 @@ import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_ui_auth/firebase_ui_auth.dart';
 import 'package:firebase_auth/firebase_auth.dart' hide EmailAuthProvider;
 import 'firebase_options.dart';
+import 'screens/video_upload_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -104,6 +105,17 @@ class HomePage extends StatelessWidget {
       ),
       body: const Center(
         child: Text('Welcome to EduTikTok!'),
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const VideoUploadScreen(),
+            ),
+          );
+        },
+        child: const Icon(Icons.video_call),
       ),
     );
   }
