@@ -14,17 +14,12 @@
   - [ ] (Optional) If using service account authentication, configure a service account key locally
 
 - [PROGRESS] Create tester groups in the Firebase console
-  - [ ] Add your own email address (or phone's Google account) as a tester
-  - [ ] Add any additional emails or configure tester groups
+  - [x] Add your own email address (or phone's Google account) as a tester
+  - [x] Add any additional emails or configure tester groups
 
-- [ ] Set up distribution for Android build
-  - [ ] Generate an AAB or APK for release (gradle task: assembleRelease or bundleRelease)
-  - [ ] Run the Firebase App Distribution upload task (e.g., firebase appdistribution:distribute or gradlew appDistributionUploadRelease)
-
-- [ ] (Optional) Automate distribution flow
-  - [ ] Integrate with a CI tool (e.g., GitHub Actions, Bitrise, etc.)
-  - [ ] Configure build and distribution steps in your CI pipeline
-
+- [x] Set up distribution for Android build
+  - [x] Generate an AAB or APK for release (gradle task: assembleRelease or bundleRelease)
+  - [x] Run the Firebase App Distribution upload task (e.g., firebase appdistribution:distribute or gradlew appDistributionUpl
 ---
 
 ## Warnings
@@ -35,15 +30,15 @@
 ## Next Steps
 1. ✅ Add the Firebase App Distribution Gradle plugin to android/build.gradle
 2. ✅ Apply the plugin in android/app/build.gradle
-3. Set up tester groups in the Firebase Console:
+3. ✅ Set up tester groups in the Firebase Console:
    - Go to the Firebase Console > App Distribution
    - Create a new group called "testers"
    - Add your email address as the first tester
-4. Generate a release build:
+4. ✅ Generate a release build:
    ```bash
    flutter build apk --release
    ```
-5. Upload the build to Firebase App Distribution:
+5. ✅ Upload the build to Firebase App Distribution:
    ```bash
    cd android && ./gradlew appDistributionUploadRelease
    ``` 
