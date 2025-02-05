@@ -12,6 +12,21 @@ void main() async {
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
+  // If test credentials are provided, sign in automatically
+  final testEmail = const String.fromEnvironment('TEST_EMAIL');
+  final testPassword = const String.fromEnvironment('TEST_PASSWORD');
+  
+  if (testEmail.isNotEmpty && testPassword.isNotEmpty) {
+    try {
+      await FirebaseAuth.instance.signInWithEmailAndPassword(
+        email: testEmail,
+        password: testPassword,
+      );
+    } catch (e) {
+      debugPrint('Failed to sign in with test credentials: $e');
+    }
+  }
+
   // Initialize FirebaseUI Auth with all providers
   FirebaseUIAuth.configureProviders([
     EmailAuthProvider(),
