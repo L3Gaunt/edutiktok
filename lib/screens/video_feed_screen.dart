@@ -255,7 +255,22 @@ class _VideoPlayerItemState extends State<VideoPlayerItem> {
                   }
                 });
               },
-              child: VideoPlayer(_controller),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  return Container(
+                    width: constraints.maxWidth,
+                    height: constraints.maxHeight,
+                    child: FittedBox(
+                      fit: BoxFit.cover,
+                      child: SizedBox(
+                        width: constraints.maxWidth,
+                        height: constraints.maxWidth / _controller.value.aspectRatio,
+                        child: VideoPlayer(_controller),
+                      ),
+                    ),
+                  );
+                },
+              ),
             ),
           if (_isBuffering || !_isInitialized)
             const Center(
