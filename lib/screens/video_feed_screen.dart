@@ -41,7 +41,8 @@ class VideoFeedScreen extends StatelessWidget {
                 videoUrl: videoData['url'],
                 title: videoData['title'] ?? '',
                 likes: videoData['likes'] ?? 0,
-                videoId: videoData['id'] ?? '',
+                views: videoData['views'] ?? 0,
+                videoId: videos[index].id,
               );
             },
           );
