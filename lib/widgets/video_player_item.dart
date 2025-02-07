@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 import 'package:visibility_detector/visibility_detector.dart';
 import '../services/like_service.dart';
+import '../services/view_service.dart';
 
 class VideoPlayerItem extends StatefulWidget {
   final String videoUrl;
   final String title;
   final int likes;
+  final int views;
   final String videoId;
 
   const VideoPlayerItem({
@@ -14,6 +16,7 @@ class VideoPlayerItem extends StatefulWidget {
     required this.videoUrl,
     required this.title,
     required this.likes,
+    required this.views,
     required this.videoId,
   });
 
@@ -27,9 +30,11 @@ class _VideoPlayerItemState extends State<VideoPlayerItem> {
   bool _isBuffering = true;
   double _bufferingProgress = 0.0;
   final LikeService _likeService = LikeService();
+  final ViewService _viewService = ViewService();
   bool _isLiked = false;
   bool _isLikeLoading = false;
   bool _isDisposed = false;
+  bool _hasRecordedView = false;
 
   @override
   void initState() {
@@ -171,13 +176,26 @@ class _VideoPlayerItemState extends State<VideoPlayerItem> {
   Widget build(BuildContext context) {
     return VisibilityDetector(
       key: Key(widget.videoUrl),
-      onVisibilityChanged: (info) {
+      onVisibilityChanged: (info) async {
         if (info.visibleFraction > 0.8) {
           if (_isDisposed) {
             _reinitializeController();
           }
           if (_isInitialized && !_controller.value.isPlaying) {
             _controller.play();
+            // Record view when video starts playing and hasn't been recorded yet
+            if (!_hasRecordedView) {
+              try {
+                await _viewService.recordView(widget.videoId);
+                if (mounted) {
+                  setState(() {
+                    _hasRecordedView = true;
+                  });
+                }
+              } catch (e) {
+                print('Error recording view: $e');
+              }
+            }
           }
         } else {
           if (_isInitialized && _controller.value.isPlaying) {
@@ -253,6 +271,38 @@ class _VideoPlayerItemState extends State<VideoPlayerItem> {
                   ),
                   child: Text(
                     '${widget.likes}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    shape: BoxShape.circle,
+                  ),
+                  child: IconButton(
+                    onPressed: null,
+                    iconSize: 40,
+                    padding: const EdgeInsets.all(12),
+                    icon: const Icon(
+                      Icons.visibility,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: Colors.black54,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    '${widget.views}',
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 16,
