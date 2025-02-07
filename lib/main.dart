@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart' hide EmailAuthProvider;
 import 'firebase_options.dart';
 import 'screens/video_upload_screen.dart';
 import 'screens/video_feed_screen.dart';
+import 'screens/my_history_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -97,6 +98,7 @@ class _HomePageState extends State<HomePage> {
         index: _selectedIndex,
         children: [
           const VideoFeedScreen(),
+          const MyHistoryScreen(),
           const VideoUploadScreen(),
           ProfileScreen(
             providers: [
@@ -129,6 +131,10 @@ class _HomePageState extends State<HomePage> {
           NavigationDestination(
             icon: Icon(Icons.home),
             label: 'Feed',
+          ),
+          NavigationDestination(
+            icon: Icon(Icons.history),
+            label: 'History',
           ),
           NavigationDestination(
             icon: Icon(Icons.video_call),
