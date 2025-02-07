@@ -7,7 +7,6 @@ class VideoPlayerItem extends StatefulWidget {
   final String videoUrl;
   final String title;
   final int likes;
-  final int views;
   final String videoId;
 
   const VideoPlayerItem({
@@ -15,7 +14,6 @@ class VideoPlayerItem extends StatefulWidget {
     required this.videoUrl,
     required this.title,
     required this.likes,
-    required this.views,
     required this.videoId,
   });
 
@@ -278,14 +276,6 @@ class _VideoPlayerItemState extends State<VideoPlayerItem> {
                     color: Colors.white,
                     fontSize: 16,
                     fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  '${widget.views} views',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 14,
                   ),
                 ),
               ],
