@@ -337,15 +337,17 @@ class _VideoPlayerItemState extends State<VideoPlayerItem> with SingleTickerProv
                   },
                   child: LayoutBuilder(
                     builder: (context, constraints) {
-                      return Container(
-                        width: constraints.maxWidth,
-                        height: constraints.maxHeight,
-                        child: FittedBox(
-                          fit: BoxFit.cover,
-                          child: SizedBox(
-                            width: constraints.maxWidth,
-                            height: constraints.maxWidth / _controller.value.aspectRatio,
-                            child: VideoPlayer(_controller),
+                      return ClipRect(
+                        child: Container(
+                          width: MediaQuery.of(context).size.width,
+                          height: MediaQuery.of(context).size.height,
+                          child: FittedBox(
+                            fit: BoxFit.cover,
+                            child: SizedBox(
+                              width: _controller.value.size.width,
+                              height: _controller.value.size.height,
+                              child: VideoPlayer(_controller),
+                            ),
                           ),
                         ),
                       );
