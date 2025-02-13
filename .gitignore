@@ -47,3 +47,6 @@ app.*.map.json
 # Environment variables
 .env
 **/.env.*
+mediasoup-server/public/dist/bundle.js
+mediasoup-server/public/dist/bundle.min.js
+mediasoup-server/public/dist/bundle.min.js.LICENSE.txt
