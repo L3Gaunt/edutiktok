@@ -1,5 +1,5 @@
 const fs = require('fs');
-const https = require('https');
+const http = require('http');
 const WebSocket = require('ws');
 const { v1: uuidv1 } = require('uuid');
 
@@ -19,13 +19,9 @@ const {
 
 const PROCESS_NAME = process.env.PROCESS_NAME || 'FFmpeg';
 const SERVER_PORT = process.env.SERVER_PORT || 3000;
-const HTTPS_OPTIONS = Object.freeze({
-  cert: fs.readFileSync('./ssl/server.crt'),
-  key: fs.readFileSync('./ssl/server.key')
-});
 
-const httpsServer = https.createServer(HTTPS_OPTIONS);
-const wss = new WebSocket.Server({ server: httpsServer });
+const httpServer = http.createServer();
+const wss = new WebSocket.Server({ server: httpServer });
 const peers = new Map();
 
 let router;
@@ -302,7 +298,7 @@ const getProcess = (recordInfo) => {
     await initializeWorkers();
     router = await createRouter();
 
-    httpsServer.listen(SERVER_PORT, () =>
+    httpServer.listen(SERVER_PORT, () =>
       console.log('Socket Server listening on port %d', SERVER_PORT)
     );
   } catch (error) {

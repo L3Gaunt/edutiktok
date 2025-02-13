@@ -62,7 +62,7 @@ npm run dev
 ```
 
 ### Access the sample page
-https://localhost:8080
+http://localhost:8080
 
 
 By default recorded videos will be available in `server/files` directory.

@@ -1,7 +1,10 @@
+const RecordManager = require('./RecordManager');
+
 class WebSocketHandler {
   constructor(mediasoupManager, bufferManager) {
     this.mediasoupManager = mediasoupManager;
     this.bufferManager = bufferManager;
+    this.recordManager = new RecordManager();
     this.clients = new Map();
   }
 
@@ -115,14 +118,52 @@ class WebSocketHandler {
         break;
 
       case 'startRecording':
-        console.log(`[Recording] Received startRecording for client ${clientId}`);
-        this.bufferManager.createBuffer(clientId);
-        ws.send(JSON.stringify({ type: 'recordingStarted', clientId }));
+        try {
+          if (!client.producer) {
+            throw new Error('No producer found to record');
+          }
+
+          const recordingInfo = await this.recordManager.startRecording(
+            client,
+            client.producer,
+            this.mediasoupManager.getRouter()
+          );
+
+          ws.send(JSON.stringify({
+            type: 'recordingStarted',
+            data: {
+              producerId: client.producer.id
+            }
+          }));
+        } catch (error) {
+          console.error('Failed to start recording:', error);
+          ws.send(JSON.stringify({
+            type: 'error',
+            data: { message: 'Failed to start recording: ' + error.message }
+          }));
+        }
         break;
 
       case 'stopRecording':
-        this.bufferManager.markBufferComplete(clientId);
-        ws.send(JSON.stringify({ type: 'recordingStopped', clientId }));
+        try {
+          if (!client.producer) {
+            throw new Error('No producer found to stop recording');
+          }
+
+          await this.recordManager.stopRecording(client.producer.id);
+          ws.send(JSON.stringify({
+            type: 'recordingStopped',
+            data: {
+              producerId: client.producer.id
+            }
+          }));
+        } catch (error) {
+          console.error('Failed to stop recording:', error);
+          ws.send(JSON.stringify({
+            type: 'error',
+            data: { message: 'Failed to stop recording: ' + error.message }
+          }));
+        }
         break;
 
       case 'consumeRecording':
@@ -145,7 +186,15 @@ class WebSocketHandler {
     const client = this.clients.get(clientId);
     
     if (client) {
-      if (client.producer) client.producer.close();
+      if (client.producer) {
+        // Stop any ongoing recording
+        try {
+          this.recordManager.stopRecording(client.producer.id);
+        } catch (error) {
+          console.error('Error stopping recording on disconnect:', error);
+        }
+        client.producer.close();
+      }
       if (client.producerTransport) client.producerTransport.close();
       this.bufferManager.clearBuffer(clientId);
       this.clients.delete(clientId);

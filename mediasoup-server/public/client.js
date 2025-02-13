@@ -86,7 +86,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 break;
 
             case 'recordingStarted':
-                currentClientId = message.clientId;
                 isRecording = true;
                 updateStatus('Recording started');
                 recordButton.textContent = 'Stop Recording';
@@ -98,21 +97,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 updateStatus('Recording stopped');
                 recordButton.textContent = 'Start Recording';
                 recordButton.classList.remove('recording');
-                // Just pause the producers instead of closing them
-                if (videoProducer) {
-                    try {
-                        videoProducer.pause();
-                    } catch (error) {
-                        console.error('Error pausing video producer:', error);
-                    }
-                }
-                if (audioProducer) {
-                    try {
-                        audioProducer.pause();
-                    } catch (error) {
-                        console.error('Error pausing audio producer:', error);
-                    }
-                }
                 break;
 
             case 'recordingData':
@@ -212,46 +196,27 @@ document.addEventListener('DOMContentLoaded', () => {
     async function toggleRecording() {
         if (!isRecording) {
             try {
-                updateStatus('Starting stream...');
-                // Send startRecording message to server
+                updateStatus('Starting recording...');
                 ws.send(JSON.stringify({
                     type: 'startRecording'
                 }));
-                await Promise.all([
-                    videoProducer.resume(),
-                    audioProducer.resume()
-                ]);
                 // isRecording will be set to true when server confirms with 'recordingStarted' message
-                updateStatus('Stream active');
+                updateStatus('Recording requested');
             } catch (error) {
                 console.error('Error starting recording:', error);
-                updateStatus('Failed to start streaming');
+                updateStatus('Failed to start recording');
             }
         } else {
             try {
-                updateStatus('Stopping stream...');
-                // Send stopRecording message to server
+                updateStatus('Stopping recording...');
                 ws.send(JSON.stringify({
-                    type: 'stopRecording',
-                    clientId: currentClientId
+                    type: 'stopRecording'
                 }));
-                await Promise.all([
-                    videoProducer.pause(),
-                    audioProducer.pause()
-                ]);
-                
-                // Make sure local video track is still enabled
-                if (mediaStream) {
-                    mediaStream.getVideoTracks().forEach(track => {
-                        track.enabled = true;
-                    });
-                }
-                
                 // isRecording will be set to false when server confirms with 'recordingStopped' message
-                updateStatus('Stream paused');
+                updateStatus('Stop recording requested');
             } catch (error) {
                 console.error('Error stopping recording:', error);
-                updateStatus('Failed to stop streaming');
+                updateStatus('Failed to stop recording');
             }
         }
     }
