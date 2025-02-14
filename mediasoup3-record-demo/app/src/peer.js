@@ -4,9 +4,11 @@ module.exports = class Peer {
     this.sessionId = sessionId;
     this.device = device;
     this.producers = [];
+    this.consumers = [];
 
     this.mediaStream = new MediaStream();
     this.sendTransport = undefined;
+    this.recvTransport = undefined;
   }
 
   hasVideo () {
@@ -15,5 +17,13 @@ module.exports = class Peer {
 
   hasAudio () {
     return Boolean(this.producers.find((producer => producer.kind === 'audio')));
+  }
+
+  addConsumer(consumer) {
+    this.consumers.push(consumer);
+  }
+
+  getConsumer(consumerId) {
+    return this.consumers.find(consumer => consumer.id === consumerId);
   }
 }

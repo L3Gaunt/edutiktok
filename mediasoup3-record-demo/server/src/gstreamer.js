@@ -17,7 +17,51 @@ module.exports = class GStreamer {
     this._rtpParameters = rtpParameters;
     this._process = undefined;
     this._observer = new EventEmitter();
-    this._createProcess();
+    if (rtpParameters) {
+      this._createProcess();
+    }
+  }
+
+  async launch(command) {
+    const exe = `GST_DEBUG=${GSTREAMER_DEBUG_LEVEL} ${GSTREAMER_COMMAND} ${GSTREAMER_OPTIONS}`;
+    this._process = child_process.spawn(exe, [command], {
+      detached: false,
+      shell: true
+    });
+
+    if (this._process.stderr) {
+      this._process.stderr.setEncoding('utf-8');
+    }
+
+    if (this._process.stdout) {
+      this._process.stdout.setEncoding('utf-8');
+    }
+
+    this._process.on('message', message =>
+      console.log('gstreamer::process::message [pid:%d, message:%o]', this._process.pid, message)
+    );
+
+    this._process.on('error', error =>
+      console.error('gstreamer::process::error [pid:%d, error:%o]', this._process.pid, error)
+    );
+
+    this._process.once('close', () => {
+      console.log('gstreamer::process::close [pid:%d]', this._process.pid);
+      this._observer.emit('process-close');
+    });
+
+    this._process.stderr.on('data', data =>
+      console.log('gstreamer::process::stderr::data [data:%o]', data)
+    );
+
+    this._process.stdout.on('data', data =>
+      console.log('gstreamer::process::stdout::data [data:%o]', data)
+    );
+
+    return new Promise((resolve, reject) => {
+      this._process.once('spawn', () => resolve());
+      this._process.once('error', reject);
+    });
   }
 
   _createProcess () {
@@ -93,7 +137,7 @@ module.exports = class GStreamer {
       '!',
       'queue',
       '!',
-      'rtpvp8depay',
+      'rtpvp9depay',
       '!',
       'mux.'
     ];

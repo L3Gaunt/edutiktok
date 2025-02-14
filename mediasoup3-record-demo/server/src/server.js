@@ -12,6 +12,7 @@ const {
   createTransport
 } = require('./mediasoup');
 const Peer = require('./peer');
+const PlaybackManager = require('./PlaybackManager');
 const {
   getPort,
   releasePort
@@ -25,6 +26,7 @@ const wss = new WebSocket.Server({ server: httpServer });
 const peers = new Map();
 
 let router;
+let playbackManager;
 
 wss.on('connection', async (socket, request) => {
   console.log('new socket connection [ip%s]', request.headers['x-forwared-for'] || request.headers.origin);
@@ -35,15 +37,45 @@ wss.on('connection', async (socket, request) => {
     const peer = new Peer(sessionId);
     peers.set(sessionId, peer);
 
+    // Create transport for this peer
+    const transport = await createTransport('webRtc', router);
+    transport.dtlsParameters.role = 'client';
+    peer.addTransport(transport);
+
+    // Get producers that are already available
+    const producers = [];
+    if (playbackManager) {
+      for (const [filename, { video, audio }] of playbackManager.producers.entries()) {
+        producers.push({
+          video: { 
+            id: video.id,
+            rtpParameters: video.rtpParameters
+          },
+          audio: { 
+            id: audio.id,
+            rtpParameters: audio.rtpParameters
+          }
+        });
+      }
+    }
+
+    // Send everything needed to start playback
     const message = JSON.stringify({
-      action: 'router-rtp-capabilities',
-      routerRtpCapabilities: router.rtpCapabilities,
-      sessionId: peer.sessionId
+      action: 'init',
+      sessionId: peer.sessionId,
+      transport: {
+        id: transport.id,
+        iceParameters: transport.iceParameters,
+        iceCandidates: transport.iceCandidates,
+        dtlsParameters: transport.dtlsParameters
+      },
+      producers
     });
 
-    console.log('router.rtpCapabilities:', router.rtpCapabilities)
-
     socket.send(message);
+
+    // Start playback for new connections
+    await playbackManager.startPlayback('/Users/name/edutiktok/mediasoup3-record-demo/server/files/1739469299099.webm');
   } catch (error) {
     console.error('Failed to create new peer [error:%o]', error);
     socket.terminate();
@@ -66,15 +98,22 @@ wss.on('connection', async (socket, request) => {
     }
   });
 
-  socket.once('close', () => {
+  socket.on('close', () => {
     console.log('socket::close [sessionId:%s]', socket.sessionId);
 
     const peer = peers.get(socket.sessionId);
 
     if (peer && peer.process) {
       peer.process.kill();
-      peer.process = undefined;
     }
+
+    if (peer && peer.remotePorts.length > 0) {
+      for (const port of peer.remotePorts) {
+        releasePort(port);
+      }
+    }
+
+    peers.delete(socket.sessionId);
   });
 });
 
@@ -82,34 +121,14 @@ const handleJsonMessage = async (jsonMessage) => {
   const { action } = jsonMessage;
 
   switch (action) {
-    case 'create-transport':
-      return await handleCreateTransportRequest(jsonMessage);
     case 'connect-transport':
       return await handleTransportConnectRequest(jsonMessage);
-    case 'produce':
-      return await handleProduceRequest(jsonMessage);
     case 'start-record':
       return await handleStartRecordRequest(jsonMessage);
     case 'stop-record':
       return await handleStopRecordRequest(jsonMessage);
     default: console.log('handleJsonMessage() unknown action [action:%s]', action);
   }
-};
-
-const handleCreateTransportRequest = async (jsonMessage) => {
-  const transport = await createTransport('webRtc', router);
-  transport.dtlsParameters.role = 'client';
-
-  const peer = peers.get(jsonMessage.sessionId);
-  peer.addTransport(transport);
-
-  return {
-    action: 'create-transport',
-    id: transport.id,
-    iceParameters: transport.iceParameters,
-    iceCandidates: transport.iceCandidates,
-    dtlsParameters: transport.dtlsParameters
-  };
 };
 
 const handleTransportConnectRequest = async (jsonMessage) => {
@@ -128,38 +147,8 @@ const handleTransportConnectRequest = async (jsonMessage) => {
   await transport.connect({ dtlsParameters: jsonMessage.dtlsParameters });
   console.log('handleTransportConnectRequest() transport connected');
   return {
-    action: 'connect-transport'
-  };
-};
-
-const handleProduceRequest = async (jsonMessage) => {
-  console.log('handleProduceRequest [data:%o]', jsonMessage);
-
-  const peer = peers.get(jsonMessage.sessionId);
-
-  if (!peer) {
-    throw new Error(`Peer with id ${jsonMessage.sessionId} was not found`);
-  }
-
-  const transport = peer.getTransport(jsonMessage.transportId);
-
-  if (!transport) {
-    throw new Error(`Transport with id ${jsonMessage.transportId} was not found`);
-  }
-
-  const producer = await transport.produce({
-    kind: jsonMessage.kind,
-    rtpParameters: jsonMessage.rtpParameters
-  });
-
-  peer.addProducer(producer);
-
-  console.log('handleProducerRequest() new producer added [id:%s, kind:%s]', producer.id, producer.kind);
-
-  return {
-    action: 'produce',
-    id: producer.id,
-    kind: producer.kind
+    action: 'connect-transport',
+    direction: jsonMessage.direction
   };
 };
 
@@ -297,6 +286,7 @@ const getProcess = (recordInfo) => {
     console.log('starting server [processName:%s]', PROCESS_NAME);
     await initializeWorkers();
     router = await createRouter();
+    playbackManager = new PlaybackManager(router);
 
     httpServer.listen(SERVER_PORT, () =>
       console.log('Socket Server listening on port %d', SERVER_PORT)
