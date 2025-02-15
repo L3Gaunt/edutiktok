@@ -34,10 +34,10 @@ exports.generateSubtitles = onObjectFinalized({
 
     // Initialize OpenAI client inside the function
     const openai = new OpenAI({
-      apiKey: functions.config().openai?.key,
+      apiKey: process.env.OPENAI_API_KEY,
     });
 
-    if (!functions.config().openai?.key) {
+    if (!process.env.OPENAI_API_KEY) {
       throw new Error("OpenAI API key not configured. Please set using firebase functions:config:set openai.key=<key>");
     }
 
