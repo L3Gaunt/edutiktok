@@ -66,6 +66,10 @@ exports.generateSubtitles = onObjectFinalized({
     const srtPath = path.join(os.tmpdir(), srtFileName);
     fs.writeFileSync(srtPath, transcription);
 
+    // Log the subtitle content
+    logger.info("Generated subtitles content:");
+    logger.info(transcription);
+
     // Upload SRT file to Firebase Storage in the same path as the video
     const srtStoragePath = `${filePath}.srt`;
     await bucket.upload(srtPath, {
@@ -74,6 +78,9 @@ exports.generateSubtitles = onObjectFinalized({
         contentType: "text/plain",
       },
     });
+
+    // Get the public download URL for the subtitle file
+    const subtitlesUrl = `https://storage.googleapis.com/${fileBucket}/${srtStoragePath}`;
 
     // Clean up temporary files
     fs.unlinkSync(tempFilePath);
@@ -85,7 +92,7 @@ exports.generateSubtitles = onObjectFinalized({
       success: true,
       message: "Subtitles generated successfully",
       data: {
-        subtitlesPath: srtStoragePath,
+        subtitlesPath: subtitlesUrl,
         videoPath: filePath,
       },
     };
