@@ -5,6 +5,7 @@ import '../services/like_service.dart';
 import '../services/view_service.dart';
 import '../services/video_upload_service.dart';
 import '../screens/video_upload_screen.dart';
+import 'package:http/http.dart' as http;
 
 class VideoPlayerItem extends StatefulWidget {
   final String videoUrl;
@@ -12,6 +13,7 @@ class VideoPlayerItem extends StatefulWidget {
   final int likes;
   final int views;
   final String videoId;
+  final String? subtitlesUrl;
 
   const VideoPlayerItem({
     super.key,
@@ -20,6 +22,7 @@ class VideoPlayerItem extends StatefulWidget {
     required this.likes,
     required this.views,
     required this.videoId,
+    this.subtitlesUrl,
   });
 
   @override
@@ -40,6 +43,8 @@ class _VideoPlayerItemState extends State<VideoPlayerItem> with SingleTickerProv
   final VideoUploadService _uploadService = VideoUploadService();
   bool _isUploading = false;
   String? _uploadStatus;
+  bool _showSubtitles = true;
+  String? _subtitlesText;
 
   // Swipe-related variables
   late AnimationController _swipeController;
@@ -52,6 +57,9 @@ class _VideoPlayerItemState extends State<VideoPlayerItem> with SingleTickerProv
     super.initState();
     _initializeVideo();
     _checkLikeStatus();
+    if (widget.subtitlesUrl != null) {
+      _loadSubtitles();
+    }
     _swipeController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 300),
@@ -181,6 +189,19 @@ class _VideoPlayerItemState extends State<VideoPlayerItem> with SingleTickerProv
     }
   }
 
+  Future<void> _loadSubtitles() async {
+    try {
+      final response = await http.get(Uri.parse(widget.subtitlesUrl!));
+      if (response.statusCode == 200) {
+        setState(() {
+          _subtitlesText = response.body;
+        });
+      }
+    } catch (e) {
+      print('Error loading subtitles: $e');
+    }
+  }
+
   @override
   void dispose() {
     _disposeController();
@@ -258,104 +279,114 @@ class _VideoPlayerItemState extends State<VideoPlayerItem> with SingleTickerProv
     });
   }
 
+  void _handleVisibilityChanged(VisibilityInfo info) async {
+    if (info.visibleFraction > 0.8) {
+      if (_isDisposed) {
+        _reinitializeController();
+      }
+      if (_isInitialized && !_controller.value.isPlaying) {
+        _controller.play();
+        // Record view when video starts playing and hasn't been recorded yet
+        if (!_hasRecordedView) {
+          try {
+            await _viewService.recordView(widget.videoId);
+            if (mounted) {
+              setState(() {
+                _hasRecordedView = true;
+              });
+            }
+          } catch (e) {
+            print('Error recording view: $e');
+          }
+        }
+      }
+    } else {
+      if (_isInitialized && _controller.value.isPlaying) {
+        _controller.pause();
+      }
+      if (info.visibleFraction < 0.2) {
+        _disposeController();
+      }
+    }
+  }
+
+  void _handleTap(TapUpDetails details) {
+    setState(() {
+      if (_controller.value.isPlaying) {
+        _controller.pause();
+      } else {
+        _controller.play();
+      }
+    });
+  }
+
+  void _handleHorizontalDragUpdate(DragUpdateDetails details) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    setState(() {
+      _swipeOffset += details.delta.dx;
+      _swipeOffset = _swipeOffset.clamp(-screenWidth, screenWidth);
+    });
+  }
+
+  void _handleHorizontalDragEnd(DragEndDetails details) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final swipePercentage = _swipeOffset.abs() / screenWidth;
+    
+    if (swipePercentage > _swipeThreshold) {
+      _handleSwipeComplete(_swipeOffset > 0);
+    } else {
+      // Reset position if threshold not met
+      setState(() {
+        _isSwipeInProgress = false;
+        _swipeOffset = 0;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return VisibilityDetector(
-      key: Key(widget.videoUrl),
-      onVisibilityChanged: (info) async {
-        if (info.visibleFraction > 0.8) {
-          if (_isDisposed) {
-            _reinitializeController();
-          }
-          if (_isInitialized && !_controller.value.isPlaying) {
-            _controller.play();
-            // Record view when video starts playing and hasn't been recorded yet
-            if (!_hasRecordedView) {
-              try {
-                await _viewService.recordView(widget.videoId);
-                if (mounted) {
-                  setState(() {
-                    _hasRecordedView = true;
-                  });
-                }
-              } catch (e) {
-                print('Error recording view: $e');
-              }
-            }
-          }
-        } else {
-          if (_isInitialized && _controller.value.isPlaying) {
-            _controller.pause();
-          }
-          if (info.visibleFraction < 0.2) {
-            _disposeController();
-          }
-        }
-      },
+      key: Key(widget.videoId),
+      onVisibilityChanged: _handleVisibilityChanged,
       child: GestureDetector(
-        onHorizontalDragStart: (_) {
-          setState(() {
-            _isSwipeInProgress = true;
-          });
-        },
-        onHorizontalDragUpdate: (details) {
-          final screenWidth = MediaQuery.of(context).size.width;
-          setState(() {
-            _swipeOffset += details.delta.dx;
-            _swipeOffset = _swipeOffset.clamp(-screenWidth, screenWidth);
-          });
-        },
-        onHorizontalDragEnd: (details) {
-          final screenWidth = MediaQuery.of(context).size.width;
-          final swipePercentage = _swipeOffset.abs() / screenWidth;
-          
-          if (swipePercentage > _swipeThreshold) {
-            _handleSwipeComplete(_swipeOffset > 0);
-          } else {
-            // Reset position if threshold not met
-            setState(() {
-              _isSwipeInProgress = false;
-              _swipeOffset = 0;
-            });
-          }
-        },
-        child: Transform.translate(
-          offset: Offset(_swipeOffset, 0),
+        onTapUp: _handleTap,
+        onHorizontalDragUpdate: _handleHorizontalDragUpdate,
+        onHorizontalDragEnd: _handleHorizontalDragEnd,
+        child: Container(
+          color: Colors.black,
           child: Stack(
-            fit: StackFit.expand,
             children: [
-              if (_isInitialized && !_isDisposed)
-                GestureDetector(
-                  onTap: () {
-                    setState(() {
-                      if (_controller.value.isPlaying) {
-                        _controller.pause();
-                      } else {
-                        _controller.play();
-                      }
-                    });
-                  },
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      return ClipRect(
-                        child: Container(
-                          width: MediaQuery.of(context).size.width,
-                          height: MediaQuery.of(context).size.height,
-                          child: FittedBox(
-                            fit: BoxFit.cover,
-                            child: SizedBox(
-                              width: _controller.value.size.width,
-                              height: _controller.value.size.height,
-                              child: VideoPlayer(_controller),
-                            ),
-                          ),
-                        ),
-                      );
-                    },
+              if (_isInitialized)
+                Center(
+                  child: AspectRatio(
+                    aspectRatio: _controller.value.aspectRatio,
+                    child: VideoPlayer(_controller),
                   ),
                 ),
-              
-              // Swipe overlay indicators
+              if (_subtitlesText != null && _showSubtitles)
+                Positioned(
+                  bottom: 40,
+                  left: 0,
+                  right: 0,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Text(
+                      _getCurrentSubtitle(),
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        shadows: [
+                          Shadow(
+                            blurRadius: 4.0,
+                            color: Colors.black,
+                            offset: Offset(2.0, 2.0),
+                          ),
+                        ],
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ),
               if (_isSwipeInProgress)
                 Positioned.fill(
                   child: Container(
@@ -532,10 +563,86 @@ class _VideoPlayerItemState extends State<VideoPlayerItem> with SingleTickerProv
                     ),
                   ),
                 ),
+              Positioned(
+                top: MediaQuery.of(context).padding.top + 16,
+                right: 16,
+                child: IconButton(
+                  icon: Icon(
+                    _showSubtitles ? Icons.subtitles : Icons.subtitles_off,
+                    color: Colors.white,
+                  ),
+                  onPressed: () {
+                    setState(() {
+                      _showSubtitles = !_showSubtitles;
+                    });
+                  },
+                ),
+              ),
             ],
           ),
         ),
       ),
     );
   }
+
+  String _getCurrentSubtitle() {
+    if (_subtitlesText == null || !_controller.value.isPlaying) {
+      return '';
+    }
+    
+    final currentTime = _controller.value.position;
+    final srtSubtitles = parseSrtSubtitles(_subtitlesText!);
+    
+    for (final subtitle in srtSubtitles) {
+      if (currentTime >= subtitle.startTime && currentTime <= subtitle.endTime) {
+        return subtitle.text;
+      }
+    }
+    
+    return '';
+  }
+}
+
+class SrtSubtitle {
+  final Duration startTime;
+  final Duration endTime;
+  final String text;
+
+  SrtSubtitle(this.startTime, this.endTime, this.text);
+}
+
+List<SrtSubtitle> parseSrtSubtitles(String srtContent) {
+  final subtitles = <SrtSubtitle>[];
+  final blocks = srtContent.trim().split('\n\n');
+
+  for (final block in blocks) {
+    final lines = block.split('\n');
+    if (lines.length < 3) continue;
+
+    final timeRange = lines[1].split(' --> ');
+    if (timeRange.length != 2) continue;
+
+    final startTime = _parseSrtTime(timeRange[0]);
+    final endTime = _parseSrtTime(timeRange[1]);
+    final text = lines.sublist(2).join('\n');
+
+    subtitles.add(SrtSubtitle(startTime, endTime, text));
+  }
+
+  return subtitles;
+}
+
+Duration _parseSrtTime(String timeStr) {
+  final parts = timeStr.trim().split(':');
+  if (parts.length != 3) return Duration.zero;
+
+  final seconds = parts[2].split(',');
+  if (seconds.length != 2) return Duration.zero;
+
+  return Duration(
+    hours: int.parse(parts[0]),
+    minutes: int.parse(parts[1]),
+    seconds: int.parse(seconds[0]),
+    milliseconds: int.parse(seconds[1]),
+  );
 } 
