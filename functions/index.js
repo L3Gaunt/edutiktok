@@ -23,10 +23,10 @@ exports.generateSubtitles = onObjectFinalized({
   timeoutSeconds: 540, // Maximum execution time (9 minutes)
 }, async (event) => {
   try {
-    // Only process video files
+    // Only process MP4 video files
     const contentType = event.data.contentType || "";
-    if (!contentType.includes("video/")) {
-      logger.info("Not a video file, skipping subtitle generation");
+    if (contentType !== "video/mp4") {
+      logger.info("Not an MP4 video file, skipping subtitle generation");
       return;
     }
 
@@ -44,7 +44,6 @@ exports.generateSubtitles = onObjectFinalized({
     const fileBucket = event.data.bucket;
     const filePath = event.data.name;
     const fileName = path.basename(filePath);
-    const videoId = path.parse(fileName).name; // Assuming the video ID is the filename without extension
     const tempFilePath = path.join(os.tmpdir(), fileName);
 
     // Get storage bucket reference
@@ -63,31 +62,17 @@ exports.generateSubtitles = onObjectFinalized({
     });
 
     // Save the SRT file
-    const srtFileName = `${path.parse(fileName).name}.srt`;
+    const srtFileName = `${fileName}.srt`;
     const srtPath = path.join(os.tmpdir(), srtFileName);
     fs.writeFileSync(srtPath, transcription);
 
-    // Upload SRT file to Firebase Storage
-    const srtStoragePath = `subtitles/${srtFileName}`;
+    // Upload SRT file to Firebase Storage in the same path as the video
+    const srtStoragePath = `${filePath}.srt`;
     await bucket.upload(srtPath, {
       destination: srtStoragePath,
       metadata: {
         contentType: "text/plain",
       },
-    });
-
-    // Get the public URL for the SRT file
-    const [srtUrl] = await bucket.file(srtStoragePath).getSignedUrl({
-      action: "read",
-      expires: "03-01-2500", // Far future expiration
-    });
-
-    // Update video metadata in Firestore
-    await db.collection("videos").doc(videoId).update({
-      subtitlesUrl: srtUrl,
-      hasSubtitles: true,
-      subtitlesLanguage: "en",
-      updatedAt: new Date(),
     });
 
     // Clean up temporary files
@@ -100,8 +85,8 @@ exports.generateSubtitles = onObjectFinalized({
       success: true,
       message: "Subtitles generated successfully",
       data: {
-        subtitlesUrl: srtUrl,
-        videoId: videoId,
+        subtitlesPath: srtStoragePath,
+        videoPath: filePath,
       },
     };
   } catch (error) {
