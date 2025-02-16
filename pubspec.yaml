@@ -46,6 +46,7 @@ dependencies:
   camera: ^0.10.5+9
   http: ^1.2.0
   video_compress: ^3.1.2  # For video compression before upload
+  cloud_functions: ^5.3.2
 
 dev_dependencies:
   flutter_test:

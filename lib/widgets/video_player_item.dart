@@ -7,6 +7,7 @@ import '../services/video_upload_service.dart';
 import '../screens/video_upload_screen.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:cloud_functions/cloud_functions.dart';
 
 class VideoPlayerItem extends StatefulWidget {
   final String videoUrl;
@@ -280,21 +281,20 @@ class _VideoPlayerItemState extends State<VideoPlayerItem> with SingleTickerProv
 
   Future<void> _fetchRecommendations() async {
     try {
-      final response = await http.post(
-        Uri.parse('https://getvideorecommendations-tsfemtsdca-uc.a.run.app/'),
-        body: {
-          'videoId': widget.videoId,
-          'description': widget.title, // Using title as description for now
-        },
-      );
+      print('Fetching recommendations for video: ${widget.videoId}');
       
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        if (mounted) {
-          setState(() {
-            _recommendations = data['recommendations'];
-          });
-        }
+      final functions = FirebaseFunctions.instance;
+      final result = await functions
+          .httpsCallable('getVideoRecommendations')
+          .call({
+        'videoId': widget.videoId,
+        'description': widget.title, // Using title as description for now
+      });
+      
+      if (mounted) {
+        setState(() {
+          _recommendations = result.data['recommendations'];
+        });
       }
     } catch (e) {
       print('Error fetching recommendations: $e');
@@ -312,28 +312,39 @@ class _VideoPlayerItemState extends State<VideoPlayerItem> with SingleTickerProv
   }
 
   void _handleVisibilityChanged(VisibilityInfo info) async {
+    print('Visibility changed: ${info.visibleFraction}');
     if (info.visibleFraction > 0.8) {
+      print('Video highly visible (>80%)');
+      print('View recorded successfully, fetching recommendations');
+      await _fetchRecommendations();
       if (_isDisposed) {
+        print('Controller was disposed, reinitializing');
         _reinitializeController();
       }
       if (_isInitialized && !_controller.value.isPlaying) {
+        print('Starting video playback');
         _controller.play();
         // Record view when video starts playing and hasn't been recorded yet
         if (!_hasRecordedView) {
+          print('First time viewing, recording view and fetching recommendations');
           try {
             await _viewService.recordView(widget.videoId);
-            await _fetchRecommendations(); // Fetch recommendations when video starts
             if (mounted) {
               setState(() {
                 _hasRecordedView = true;
               });
             }
           } catch (e) {
-            print('Error recording view: $e');
+            print('Error recording view or fetching recommendations: $e');
           }
+        } else {
+          print('View already recorded, skipping view recording and recommendations');
         }
+      } else {
+        print('Video not ready to play: initialized=${_isInitialized}, playing=${_controller.value.isPlaying}');
       }
     } else {
+      print('Video not highly visible (<80%)');
       if (_isInitialized && _controller.value.isPlaying) {
         _controller.pause();
       }
