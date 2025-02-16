@@ -15,6 +15,58 @@ initializeApp();
 // Initialize Firestore and Storage
 const db = getFirestore();
 
+// Function to generate title and description using OpenAI
+async function generateTitleAndDescription(subtitles) {
+  const openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  });
+
+  const functions = [{
+    name: "set_video_metadata",
+    description: "Set the title and description for a TikTok-style educational video",
+    parameters: {
+      type: "object",
+      properties: {
+        title: {
+          type: "string",
+          description: "Catchy and engaging title for the video (max 50 characters)"
+        },
+        description: {
+          type: "string",
+          description: "Brief description of the video content (max 150 characters)"
+        }
+      },
+      required: ["title", "description"]
+    }
+  }];
+
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4o",
+    messages: [{
+      role: "user",
+      content: `Based on these video subtitles, generate a catchy title and brief description for a TikTok-style educational video:\n\n${subtitles}`
+    }],
+    functions,
+    function_call: { name: "set_video_metadata" },
+    temperature: 0.7,
+  });
+
+  try {
+    const functionCall = completion.choices[0].message.function_call;
+    const response = JSON.parse(functionCall.arguments);
+    return {
+      title: response.title || "",
+      description: response.description || ""
+    };
+  } catch (error) {
+    logger.error("Error parsing OpenAI response:", error);
+    return {
+      title: "",
+      description: ""
+    };
+  }
+}
+
 // Cloud function to generate subtitles
 exports.generateSubtitles = onDocumentCreated("videos/{videoId}", async (event) => {
   // Create a temporary file path
@@ -60,11 +112,21 @@ exports.generateSubtitles = onDocumentCreated("videos/{videoId}", async (event) 
       language: "en",
     });
 
-    // Update the Firestore document with the subtitles
-    await event.data.ref.set({
+    // Generate title and description if title is empty
+    let updateData = {
       subtitles: transcription,
       subtitlesGeneratedAt: new Date(),
-    }, {merge: true});
+    };
+
+    if (!videoData.title || videoData.title.trim() === "") {
+      logger.info("Generating title and description for video");
+      const { title, description } = await generateTitleAndDescription(transcription);
+      updateData.title = title;
+      updateData.description = description;
+    }
+
+    // Update the Firestore document with the subtitles and optional title/description
+    await event.data.ref.set(updateData, {merge: true});
 
     logger.info("Subtitle generation complete for video:", path.basename(videoUrl));
 
