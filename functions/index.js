@@ -7,14 +7,19 @@ const {OpenAI} = require("openai");
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
+const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
 
 // Initialize Firebase Admin
 initializeApp();
 
 // Initialize Firestore and Storage
 const db = getFirestore();
+
 // Cloud function to generate subtitles
 exports.generateSubtitles = onDocumentCreated("videos/{videoId}", async (event) => {
+  // Create a temporary file path
+  const tempFilePath = path.join(os.tmpdir(), `video-${Date.now()}.mp4`);
+  
   try {
     const videoData = event.data.data();
     const videoUrl = videoData.url;
@@ -34,15 +39,23 @@ exports.generateSubtitles = onDocumentCreated("videos/{videoId}", async (event) 
       throw new Error("OpenAI API key not configured. Please set using firebase functions:config:set openai.key=<key>");
     }
 
-    // Download video file to temp location
-    const videoFileName = path.basename(videoUrl);
-    // Fetch the video and stream it directly to OpenAI
+    // Download video file
     const response = await fetch(videoUrl);
-    
-    // Create a transcription using Whisper API by streaming the response
+    if (!response.ok) {
+      throw new Error(`Failed to fetch video: ${response.statusText}`);
+    }
+
+    // Write the video to a temporary file
+    const buffer = await response.buffer();
+    fs.writeFileSync(tempFilePath, buffer);
+
+    // Create a readable stream from the temporary file
+    const videoFile = fs.createReadStream(tempFilePath);
+
+    // Create a transcription using Whisper API
     const transcription = await openai.audio.transcriptions.create({
-      file: response.body,
-      model: "whisper-1", 
+      file: videoFile,
+      model: "whisper-1",
       response_format: "srt",
       language: "en",
     });
@@ -53,7 +66,7 @@ exports.generateSubtitles = onDocumentCreated("videos/{videoId}", async (event) 
       subtitlesGeneratedAt: new Date(),
     }, {merge: true});
 
-    logger.info("Subtitle generation complete for video:", videoFileName);
+    logger.info("Subtitle generation complete for video:", path.basename(videoUrl));
 
     return {
       success: true,
@@ -75,5 +88,15 @@ exports.generateSubtitles = onDocumentCreated("videos/{videoId}", async (event) 
 
     // Return error response
     throw new Error(`Failed to generate subtitles: ${error.message}`);
+  } finally {
+    // Clean up: Delete the temporary file
+    try {
+      if (fs.existsSync(tempFilePath)) {
+        fs.unlinkSync(tempFilePath);
+        logger.info("Temporary file cleaned up:", tempFilePath);
+      }
+    } catch (cleanupError) {
+      logger.error("Error cleaning up temporary file:", cleanupError);
+    }
   }
 });
