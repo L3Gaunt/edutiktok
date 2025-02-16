@@ -191,17 +191,23 @@ exports.getVideoRecommendations = onCall(
         return { recommendations: [] };
       }
 
-      const candidateVideos = videosSnapshot.docs.map(doc => ({
-        id: doc.id,
-        title: doc.data().title || '',
-        description: doc.data().description || '',
-        url: doc.data().url,
-        likes: doc.data().likes || 0,
-        views: doc.data().views || 0,
-        timestamp: doc.data().timestamp,
-        userId: doc.data().userId,
-        subtitles: doc.data().subtitles
-      }));
+      const candidateVideos = videosSnapshot.docs
+        .map(doc => ({
+          id: doc.id,
+          title: doc.data().title || '',
+          description: doc.data().description || '',
+          url: doc.data().url,
+          likes: doc.data().likes || 0,
+          views: doc.data().views || 0,
+          timestamp: doc.data().timestamp,
+          userId: doc.data().userId,
+          subtitles: doc.data().subtitles
+        }))
+        .filter(video => video.description && video.description.trim() !== ''); // Only include videos with non-empty descriptions
+
+      if (candidateVideos.length === 0) {
+        return { recommendations: [] };
+      }
 
       // Use OpenAI to rank the videos
       const completion = await openai.chat.completions.create({
