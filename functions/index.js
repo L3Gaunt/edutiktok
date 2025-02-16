@@ -1,5 +1,6 @@
 const {logger} = require("firebase-functions");
 const {onDocumentCreated} = require("firebase-functions/v2/firestore");
+const {onCall} = require("firebase-functions/v2/https");
 const {initializeApp} = require("firebase-admin/app");
 const {getStorage} = require("firebase-admin/storage");
 const {getFirestore} = require("firebase-admin/firestore");
@@ -8,6 +9,7 @@ const fs = require("fs");
 const path = require("path");
 const os = require("os");
 const fetch = (...args) => import('node-fetch').then(({default: fetch}) => fetch(...args));
+const {HttpsError} = require("firebase-functions");
 
 // Initialize Firebase Admin
 initializeApp();
@@ -162,3 +164,94 @@ exports.generateSubtitles = onDocumentCreated("videos/{videoId}", async (event) 
     }
   }
 });
+
+// Function to get video recommendations using OpenAI
+exports.getVideoRecommendations = onCall(
+  { maxInstances: 10 },
+  async (request) => {
+    try {
+      const { videoId, description } = request.data;
+      
+      if (!videoId || !description) {
+        throw new Error("videoId and description are required parameters");
+      }
+
+      // Initialize OpenAI client
+      const openai = new OpenAI({
+        apiKey: process.env.OPENAI_API_KEY,
+      });
+
+      // Get all videos except the current one
+      const videosSnapshot = await db.collection('videos')
+        .where('id', '!=', videoId)
+        .limit(50)  // Limit to 20 candidates for cost efficiency
+        .get();
+
+      if (videosSnapshot.empty) {
+        return { recommendations: [] };
+      }
+
+      const candidateVideos = videosSnapshot.docs.map(doc => ({
+        id: doc.id,
+        title: doc.data().title || '',
+        description: doc.data().description || '',
+        url: doc.data().url,
+        likes: doc.data().likes || 0,
+        views: doc.data().views || 0,
+        timestamp: doc.data().timestamp,
+        userId: doc.data().userId,
+        subtitles: doc.data().subtitles
+      }));
+
+      // Use OpenAI to rank the videos
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [{
+          role: "system",
+          content: "You are a video recommendation system. Rank the candidate videos based on their relevance to the input video's description. Consider semantic similarity, educational value, and topic relevance. Return exactly 5 most relevant videos."
+        }, {
+          role: "user",
+          content: `Input video description: "${description}"
+          
+Candidate videos:
+${candidateVideos.map(v => `ID: ${v.id}
+Title: ${v.title}
+Description: ${v.description}
+---`).join('\n')}
+
+Return a JSON array of the top 5 most relevant video IDs, ordered by relevance.`
+        }],
+        response_format: { type: "json_object" },
+        temperature: 0.5,
+      });
+
+      const response = JSON.parse(completion.choices[0].message.content);
+      
+      // Get full details of recommended videos
+      const recommendedVideos = await Promise.all(
+        response.recommendations.map(async (videoId) => {
+          const video = candidateVideos.find(v => v.id === videoId);
+          return video ? {
+            id: video.id,
+            title: video.title,
+            description: video.description,
+            url: video.url,
+            likes: video.likes,
+            views: video.views,
+            timestamp: video.timestamp,
+            userId: video.userId,
+            subtitles: video.subtitles
+          } : null;
+        })
+      );
+
+      // Filter out any null values and return
+      return {
+        recommendations: recommendedVideos.filter(v => v !== null)
+      };
+    } catch (error) {
+      logger.error("Error getting video recommendations:", error);
+      throw new HttpsError('internal', `Failed to get recommendations: ${error.message}`);
+    }
+  }
+);
