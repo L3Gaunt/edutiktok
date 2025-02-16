@@ -208,7 +208,7 @@ exports.getVideoRecommendations = onCall(
         model: "gpt-4o",
         messages: [{
           role: "system",
-          content: "You are a video recommendation system. Return up to 5 relevant video recommendations."
+          content: "You are a video recommendation system. Return up to 5 relevant video recommendations. Return the IDs of the videos, not the titles or descriptions."
         }, {
           role: "user",
           content: `Input video description: "${description}"
@@ -251,6 +251,14 @@ Description: ${v.description}
 
       const response = JSON.parse(functionCall.arguments);
       
+      // Log the raw recommendations from OpenAI
+      logger.info("Raw OpenAI recommendations:", {
+        inputVideoId: videoId,
+        rawRecommendations: response.recommendations,
+        functionCallName: functionCall.name,
+        totalCandidates: candidateVideos.length
+      });
+      
       if (!response.recommendations || !Array.isArray(response.recommendations)) {
         logger.error("Invalid recommendations format from OpenAI:", response);
         throw new Error("Invalid recommendations format received from AI");
@@ -275,8 +283,21 @@ Description: ${v.description}
       );
 
       // Filter out any null values and return
+      const finalRecommendations = recommendedVideos.filter(v => v !== null);
+      
+      // Log the recommendations
+      logger.info("Video recommendations generated:", {
+        inputVideoId: videoId,
+        recommendationCount: finalRecommendations.length,
+        recommendations: finalRecommendations.map(video => ({
+          id: video.id,
+          title: video.title,
+          description: video.description
+        }))
+      });
+
       return {
-        recommendations: recommendedVideos.filter(v => v !== null)
+        recommendations: finalRecommendations
       };
     } catch (error) {
       logger.error("Error getting video recommendations:", error);
