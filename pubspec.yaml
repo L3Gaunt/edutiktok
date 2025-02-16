@@ -45,6 +45,7 @@ dependencies:
   visibility_detector: ^0.4.0+2  # For auto-play/pause when videos enter/exit viewport
   camera: ^0.10.5+9
   http: ^1.2.0
+  video_compress: ^3.1.2  # For video compression before upload
 
 dev_dependencies:
   flutter_test:

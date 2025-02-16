@@ -5,6 +5,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
+import 'package:video_compress/video_compress.dart';
 
 class VideoUploadService {
   final FirebaseStorage _storage = FirebaseStorage.instance;
@@ -19,6 +20,7 @@ class VideoUploadService {
   @override
   void dispose() {
     _uploadProgressController.close();
+    VideoCompress.cancelCompression();
   }
 
   // Pick video from gallery or camera
@@ -28,6 +30,21 @@ class VideoUploadService {
       maxDuration: const Duration(minutes: 10), // Limit video duration to 10 minutes
     );
     return video;
+  }
+
+  // Compress video before upload
+  Future<File?> _compressVideo(String videoPath) async {
+    try {
+      final MediaInfo? mediaInfo = await VideoCompress.compressVideo(
+        videoPath,
+        quality: VideoQuality.MediumQuality, // You can adjust quality as needed
+        deleteOrigin: true, // Keep original video
+      );
+      return mediaInfo?.file;
+    } catch (e) {
+      print('Error compressing video: $e');
+      return null;
+    }
   }
 
   // Upload video to Firebase Storage and store metadata in Firestore
@@ -40,6 +57,12 @@ class VideoUploadService {
         throw Exception('User must be logged in to upload videos');
       }
 
+      // Compress video before upload
+      final File? compressedVideo = await _compressVideo(videoFile.path);
+      if (compressedVideo == null) {
+        throw Exception('Failed to compress video');
+      }
+
       final userId = _auth.currentUser!.uid;
       final timestamp = DateTime.now();
       final videoFileName = 'videos/$userId/${timestamp.millisecondsSinceEpoch}.mp4';
@@ -47,7 +70,7 @@ class VideoUploadService {
       final videoRef = _storage.ref().child(videoFileName);
       
       final uploadTask = videoRef.putFile(
-        File(videoFile.path),
+        compressedVideo,
         SettableMetadata(contentType: 'video/mp4'),
       );
 
