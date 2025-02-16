@@ -6,6 +6,7 @@ import '../services/view_service.dart';
 import '../services/video_upload_service.dart';
 import '../screens/video_upload_screen.dart';
 import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class VideoPlayerItem extends StatefulWidget {
   final String videoUrl;
@@ -14,6 +15,7 @@ class VideoPlayerItem extends StatefulWidget {
   final int views;
   final String videoId;
   final String? subtitles;
+  final Function(dynamic)? onRecommendationSelected;
 
   const VideoPlayerItem({
     super.key,
@@ -23,6 +25,7 @@ class VideoPlayerItem extends StatefulWidget {
     required this.views,
     required this.videoId,
     this.subtitles,
+    this.onRecommendationSelected,
   });
 
   @override
@@ -45,6 +48,8 @@ class _VideoPlayerItemState extends State<VideoPlayerItem> with SingleTickerProv
   String? _uploadStatus;
   bool _showSubtitles = true;
   List<SrtSubtitle>? _parsedSubtitles;
+  List<dynamic>? _recommendations;
+  bool _showRecommendations = false;
 
   // Swipe-related variables
   late AnimationController _swipeController;
@@ -187,6 +192,13 @@ class _VideoPlayerItemState extends State<VideoPlayerItem> with SingleTickerProv
         _bufferingProgress = bufferEnd.inMilliseconds / duration.inMilliseconds;
       });
     }
+
+    // Check if video ended
+    if (value.position >= value.duration) {
+      setState(() {
+        _showRecommendations = true;
+      });
+    }
   }
 
   @override
@@ -266,6 +278,39 @@ class _VideoPlayerItemState extends State<VideoPlayerItem> with SingleTickerProv
     });
   }
 
+  Future<void> _fetchRecommendations() async {
+    try {
+      final response = await http.post(
+        Uri.parse('https://getvideorecommendations-tsfemtsdca-uc.a.run.app/'),
+        body: {
+          'videoId': widget.videoId,
+          'description': widget.title, // Using title as description for now
+        },
+      );
+      
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (mounted) {
+          setState(() {
+            _recommendations = data['recommendations'];
+          });
+        }
+      }
+    } catch (e) {
+      print('Error fetching recommendations: $e');
+    }
+  }
+
+  void _handleRecommendationTap(dynamic recommendation) {
+    setState(() {
+      _showRecommendations = false;
+    });
+    
+    if (widget.onRecommendationSelected != null) {
+      widget.onRecommendationSelected!(recommendation);
+    }
+  }
+
   void _handleVisibilityChanged(VisibilityInfo info) async {
     if (info.visibleFraction > 0.8) {
       if (_isDisposed) {
@@ -277,6 +322,7 @@ class _VideoPlayerItemState extends State<VideoPlayerItem> with SingleTickerProv
         if (!_hasRecordedView) {
           try {
             await _viewService.recordView(widget.videoId);
+            await _fetchRecommendations(); // Fetch recommendations when video starts
             if (mounted) {
               setState(() {
                 _hasRecordedView = true;
@@ -565,6 +611,69 @@ class _VideoPlayerItemState extends State<VideoPlayerItem> with SingleTickerProv
                   },
                 ),
               ),
+
+              if (_showRecommendations && _recommendations != null)
+                Positioned.fill(
+                  child: Container(
+                    color: Colors.black.withOpacity(0.8),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text(
+                          'Recommended Videos',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        Expanded(
+                          child: ListView.builder(
+                            padding: const EdgeInsets.symmetric(horizontal: 16),
+                            itemCount: _recommendations!.length,
+                            itemBuilder: (context, index) {
+                              final recommendation = _recommendations![index];
+                              return ListTile(
+                                onTap: () => _handleRecommendationTap(recommendation),
+                                title: Text(
+                                  recommendation['title'] ?? '',
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                subtitle: Text(
+                                  recommendation['description'] ?? '',
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 14,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                trailing: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Text(
+                                      '${recommendation['likes']} likes',
+                                      style: const TextStyle(color: Colors.white),
+                                    ),
+                                    Text(
+                                      '${recommendation['views']} views',
+                                      style: const TextStyle(color: Colors.white),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
             ],
           ),
         ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../widgets/video_player_item.dart';
+import '../screens/video_feed_screen.dart';
 
 class MyHistoryScreen extends StatefulWidget {
   const MyHistoryScreen({super.key});
@@ -14,6 +15,17 @@ class _MyHistoryScreenState extends State<MyHistoryScreen> {
   bool _showOnlyLiked = false;
   bool _isLoading = false;
   String? _error;
+
+  void _handleRecommendationSelected(dynamic recommendation) {
+    // When a recommendation is selected in history view,
+    // navigate to the video feed screen with the selected video
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const VideoFeedScreen(),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -102,6 +114,7 @@ class _MyHistoryScreenState extends State<MyHistoryScreen> {
                       views: videoData['views'] ?? 0,
                       videoId: videos[index].id,
                       subtitles: videoData['subtitles'],
+                      onRecommendationSelected: _handleRecommendationSelected,
                     ),
                   );
                 },
