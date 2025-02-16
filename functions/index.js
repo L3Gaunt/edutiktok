@@ -208,7 +208,7 @@ exports.getVideoRecommendations = onCall(
         model: "gpt-4o",
         messages: [{
           role: "system",
-          content: "You are a video recommendation system. Rank the candidate videos based on their relevance to the input video's description. Consider semantic similarity, educational value, and topic relevance. Return exactly 5 most relevant videos."
+          content: "You are a video recommendation system. Return up to 5 relevant video recommendations."
         }, {
           role: "user",
           content: `Input video description: "${description}"
@@ -217,16 +217,45 @@ Candidate videos:
 ${candidateVideos.map(v => `ID: ${v.id}
 Title: ${v.title}
 Description: ${v.description}
----`).join('\n')}
-
-Return a JSON array of the top 5 most relevant video IDs, ordered by relevance.`
+---`).join('\n')}`
         }],
-        response_format: { type: "json_object" },
+        functions: [{
+          name: "recommend_videos",
+          description: "Up to 5 relevant video recommendations",
+          parameters: {
+            type: "object",
+            properties: {
+              recommendations: {
+                type: "array",
+                description: "Array of video IDs ordered by relevance",
+                items: {
+                  type: "string",
+                  description: "Video ID"
+                },
+                minItems: 0,
+                maxItems: 5
+              }
+            },
+            required: ["recommendations"]
+          }
+        }],
+        function_call: { name: "recommend_videos" },
         temperature: 0.5,
       });
 
-      const response = JSON.parse(completion.choices[0].message.content);
+      const functionCall = completion.choices[0].message.function_call;
+      if (!functionCall || functionCall.name !== "recommend_videos") {
+        logger.error("Unexpected response format from OpenAI:", completion.choices[0]);
+        throw new Error("Invalid response format from AI");
+      }
+
+      const response = JSON.parse(functionCall.arguments);
       
+      if (!response.recommendations || !Array.isArray(response.recommendations)) {
+        logger.error("Invalid recommendations format from OpenAI:", response);
+        throw new Error("Invalid recommendations format received from AI");
+      }
+
       // Get full details of recommended videos
       const recommendedVideos = await Promise.all(
         response.recommendations.map(async (videoId) => {
