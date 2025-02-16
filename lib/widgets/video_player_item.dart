@@ -137,7 +137,6 @@ class _VideoPlayerItemState extends State<VideoPlayerItem> with SingleTickerProv
       
       if (mounted && !_isDisposed) {
         _controller.addListener(_videoListener);
-        await _controller.setLooping(true);
         
         setState(() {
           _isInitialized = true;
@@ -385,6 +384,14 @@ class _VideoPlayerItemState extends State<VideoPlayerItem> with SingleTickerProv
         _swipeOffset = 0;
       });
     }
+  }
+
+  void _handleReplay() {
+    setState(() {
+      _showRecommendations = false;
+    });
+    _controller.seekTo(Duration.zero);
+    _controller.play();
   }
 
   @override
@@ -636,6 +643,17 @@ class _VideoPlayerItemState extends State<VideoPlayerItem> with SingleTickerProv
                             color: Colors.white,
                             fontSize: 24,
                             fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        ElevatedButton.icon(
+                          onPressed: _handleReplay,
+                          icon: const Icon(Icons.replay),
+                          label: const Text('Replay Video'),
+                          style: ElevatedButton.styleFrom(
+                            foregroundColor: Colors.white,
+                            backgroundColor: Colors.blue,
+                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
                           ),
                         ),
                         const SizedBox(height: 16),
