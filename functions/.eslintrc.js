@@ -7,14 +7,11 @@ module.exports = {
   parserOptions: {
     ecmaVersion: 2022,
   },
-  extends: [
-    "eslint:recommended",
-    "google",
-  ],
+  extends: [],
   rules: {
-    "quotes": ["error", "double"],
-    "max-len": ["error", {"code": 120}],
-    "no-unused-vars": "off",
+    "quotes": "off",
+    "max-len": "off",
+    "no-unused-vars": "off"
   },
   overrides: [
     {

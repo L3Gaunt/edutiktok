@@ -1,6 +1,5 @@
-const {onObjectFinalized} = require("firebase-functions/v2/storage");
 const {logger} = require("firebase-functions");
-const functions = require("firebase-functions");
+const {onDocumentCreated} = require("firebase-functions/v2/firestore");
 const {initializeApp} = require("firebase-admin/app");
 const {getStorage} = require("firebase-admin/storage");
 const {getFirestore} = require("firebase-admin/firestore");
@@ -12,27 +11,21 @@ const os = require("os");
 // Initialize Firebase Admin
 initializeApp();
 
-// Initialize Firestore
+// Initialize Firestore and Storage
 const db = getFirestore();
-
 // Cloud function to generate subtitles
-exports.generateSubtitles = onObjectFinalized({
-  cpu: 2, // Allocate 2 CPU cores
-  memory: "2GiB", // Allocate 2GB of memory
-  maxInstances: 3, // Maximum number of concurrent instances
-  timeoutSeconds: 540, // Maximum execution time (9 minutes)
-}, async (event) => {
+exports.generateSubtitles = onDocumentCreated("videos/{videoId}", async (event) => {
   try {
-    // Only process MP4 video files
-    const contentType = event.data.contentType || "";
-    if (contentType !== "video/mp4") {
-      logger.info("Not an MP4 video file, skipping subtitle generation");
-      return;
+    const videoData = event.data.data();
+    const videoUrl = videoData.url;
+
+    if (!videoUrl) {
+      throw new Error("No video URL found in document");
     }
 
-    logger.info("Generate subtitles triggered for upload:", event.data.name);
+    logger.info("Generate subtitles triggered for video:", videoUrl);
 
-    // Initialize OpenAI client inside the function
+    // Initialize OpenAI client
     const openai = new OpenAI({
       apiKey: process.env.OPENAI_API_KEY,
     });
@@ -41,64 +34,44 @@ exports.generateSubtitles = onObjectFinalized({
       throw new Error("OpenAI API key not configured. Please set using firebase functions:config:set openai.key=<key>");
     }
 
-    const fileBucket = event.data.bucket;
-    const filePath = event.data.name;
-    const fileName = path.basename(filePath);
-    const tempFilePath = path.join(os.tmpdir(), fileName);
-
-    // Get storage bucket reference
-    const bucket = getStorage().bucket(fileBucket);
-
-    // Download video file
-    await bucket.file(filePath).download({destination: tempFilePath});
-    logger.info("Video downloaded to:", tempFilePath);
-
-    // Create a transcription using Whisper API
+    // Download video file to temp location
+    const videoFileName = path.basename(videoUrl);
+    // Fetch the video and stream it directly to OpenAI
+    const response = await fetch(videoUrl);
+    
+    // Create a transcription using Whisper API by streaming the response
     const transcription = await openai.audio.transcriptions.create({
-      file: fs.createReadStream(tempFilePath),
-      model: "whisper-1",
+      file: response.body,
+      model: "whisper-1", 
       response_format: "srt",
-      language: "en", // You might want to make this dynamic
+      language: "en",
     });
 
-    // Save the SRT file
-    const srtFileName = `${fileName}.srt`;
-    const srtPath = path.join(os.tmpdir(), srtFileName);
-    fs.writeFileSync(srtPath, transcription);
+    // Update the Firestore document with the subtitles
+    await event.data.ref.set({
+      subtitles: transcription,
+      subtitlesGeneratedAt: new Date(),
+    }, {merge: true});
 
-    // Log the subtitle content
-    logger.info("Generated subtitles content:");
-    logger.info(transcription);
-
-    // Upload SRT file to Firebase Storage in the same path as the video
-    const srtStoragePath = `${filePath}.srt`;
-    await bucket.upload(srtPath, {
-      destination: srtStoragePath,
-      metadata: {
-        contentType: "text/plain",
-      },
-    });
-
-    // Get the public download URL for the subtitle file
-    const subtitlesUrl = `https://storage.googleapis.com/${fileBucket}/${srtStoragePath}`;
-
-    // Clean up temporary files
-    fs.unlinkSync(tempFilePath);
-    fs.unlinkSync(srtPath);
-
-    logger.info("Subtitle generation complete for:", fileName);
+    logger.info("Subtitle generation complete for video:", videoFileName);
 
     return {
       success: true,
-      message: "Subtitles generated successfully",
-      data: {
-        subtitlesPath: subtitlesUrl,
-        videoPath: filePath,
-      },
+      message: "Subtitles generated and stored in document successfully",
     };
   } catch (error) {
     // Log the error
     logger.error("Error generating subtitles:", error);
+
+    try {
+      // Update document with error status
+      await event.data.ref.set({
+        subtitlesError: error.message,
+        subtitlesErrorAt: new Date(),
+      }, {merge: true});
+    } catch (dbError) {
+      logger.error("Failed to update error status in document:", dbError);
+    }
 
     // Return error response
     throw new Error(`Failed to generate subtitles: ${error.message}`);

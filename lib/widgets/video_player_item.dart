@@ -13,7 +13,7 @@ class VideoPlayerItem extends StatefulWidget {
   final int likes;
   final int views;
   final String videoId;
-  final String? subtitlesUrl;
+  final String? subtitles;
 
   const VideoPlayerItem({
     super.key,
@@ -22,7 +22,7 @@ class VideoPlayerItem extends StatefulWidget {
     required this.likes,
     required this.views,
     required this.videoId,
-    this.subtitlesUrl,
+    this.subtitles,
   });
 
   @override
@@ -44,7 +44,7 @@ class _VideoPlayerItemState extends State<VideoPlayerItem> with SingleTickerProv
   bool _isUploading = false;
   String? _uploadStatus;
   bool _showSubtitles = true;
-  String? _subtitlesText;
+  List<SrtSubtitle>? _parsedSubtitles;
 
   // Swipe-related variables
   late AnimationController _swipeController;
@@ -57,8 +57,8 @@ class _VideoPlayerItemState extends State<VideoPlayerItem> with SingleTickerProv
     super.initState();
     _initializeVideo();
     _checkLikeStatus();
-    if (widget.subtitlesUrl != null) {
-      _loadSubtitles();
+    if (widget.subtitles != null) {
+      _parsedSubtitles = parseSrtSubtitles(widget.subtitles!);
     }
     _swipeController = AnimationController(
       vsync: this,
@@ -186,19 +186,6 @@ class _VideoPlayerItemState extends State<VideoPlayerItem> with SingleTickerProv
       setState(() {
         _bufferingProgress = bufferEnd.inMilliseconds / duration.inMilliseconds;
       });
-    }
-  }
-
-  Future<void> _loadSubtitles() async {
-    try {
-      final response = await http.get(Uri.parse(widget.subtitlesUrl!));
-      if (response.statusCode == 200) {
-        setState(() {
-          _subtitlesText = response.body;
-        });
-      }
-    } catch (e) {
-      print('Error loading subtitles: $e');
     }
   }
 
@@ -363,7 +350,7 @@ class _VideoPlayerItemState extends State<VideoPlayerItem> with SingleTickerProv
                     child: VideoPlayer(_controller),
                   ),
                 ),
-              if (_subtitlesText != null && _showSubtitles)
+              if (_parsedSubtitles != null && _showSubtitles)
                 Positioned(
                   bottom: 40,
                   left: 0,
@@ -586,14 +573,13 @@ class _VideoPlayerItemState extends State<VideoPlayerItem> with SingleTickerProv
   }
 
   String _getCurrentSubtitle() {
-    if (_subtitlesText == null || !_controller.value.isPlaying) {
+    if (_parsedSubtitles == null || !_controller.value.isPlaying) {
       return '';
     }
     
     final currentTime = _controller.value.position;
-    final srtSubtitles = parseSrtSubtitles(_subtitlesText!);
     
-    for (final subtitle in srtSubtitles) {
+    for (final subtitle in _parsedSubtitles!) {
       if (currentTime >= subtitle.startTime && currentTime <= subtitle.endTime) {
         return subtitle.text;
       }
