@@ -101,6 +101,7 @@ class _MyHistoryScreenState extends State<MyHistoryScreen> {
                       likes: videoData['likes'] ?? 0,
                       views: videoData['views'] ?? 0,
                       videoId: videos[index].id,
+                      subtitles: videoData['subtitles'],
                     ),
                   );
                 },
