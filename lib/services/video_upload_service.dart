@@ -37,7 +37,7 @@ class VideoUploadService {
     try {
       final MediaInfo? mediaInfo = await VideoCompress.compressVideo(
         videoPath,
-        quality: VideoQuality.MediumQuality, // You can adjust quality as needed
+        quality: VideoQuality.LowQuality, // You can adjust quality as needed
         deleteOrigin: true, // Keep original video
       );
       return mediaInfo?.file;
