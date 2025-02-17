@@ -10,15 +10,15 @@ import 'dart:convert';
 import 'package:cloud_functions/cloud_functions.dart';
 
 class VideoPlayerItem extends StatefulWidget {
-  final String videoUrl;
-  final String title;
-  final int likes;
-  final int views;
-  final String videoId;
-  final String? subtitles;
+  String videoUrl;
+  String title;
+  int likes;
+  int views;
+  String videoId;
+  String? subtitles;
   final Function(dynamic)? onRecommendationSelected;
 
-  const VideoPlayerItem({
+  VideoPlayerItem({
     super.key,
     required this.videoUrl,
     required this.title,
@@ -301,13 +301,47 @@ class _VideoPlayerItemState extends State<VideoPlayerItem> with SingleTickerProv
   }
 
   void _handleRecommendationTap(dynamic recommendation) {
+    print('Tapped recommendation: ${recommendation['title']} (ID: ${recommendation['id']})');
+    
+    // Update widget with new video information, with proper type checking
+    final videoUrl = recommendation['url']?.toString();
+    final title = recommendation['title']?.toString();
+    final videoId = recommendation['id']?.toString();
+    final likes = (recommendation['likes'] as num?)?.toInt() ?? 0;
+    final views = (recommendation['views'] as num?)?.toInt() ?? 0;
+    final subtitles = recommendation['subtitles']?.toString();
+
+    // Validate required fields
+    if (videoUrl == null || title == null || videoId == null) {
+      print('Error: Missing required fields in recommendation data');
+      print('Debug recommendation data: ${recommendation.toString()}');
+      return;
+    }
+
+    // Update widget properties
+    widget.videoUrl = videoUrl;
+    widget.title = title;
+    widget.likes = likes;
+    widget.views = views;
+    widget.videoId = videoId;
+    widget.subtitles = subtitles;
+
+    // Reset state and reload video
     setState(() {
       _showRecommendations = false;
+      _hasRecordedView = false;
+      _isLiked = false;
+      if (subtitles != null) {
+        _parsedSubtitles = parseSrtSubtitles(subtitles);
+      } else {
+        _parsedSubtitles = null;
+      }
     });
-    
-    if (widget.onRecommendationSelected != null) {
-      widget.onRecommendationSelected!(recommendation);
-    }
+
+    // Dispose current controller and initialize new one
+    _disposeController();
+    _isDisposed = false;
+    _initializeVideo();
   }
 
   void _handleVisibilityChanged(VisibilityInfo info) async {
