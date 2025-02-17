@@ -635,8 +635,8 @@ class _VideoPlayerItemState extends State<VideoPlayerItem> with SingleTickerProv
                   child: Container(
                     color: Colors.black.withOpacity(0.8),
                     child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
+                        const SizedBox(height: 16),
                         const Text(
                           'Recommended Videos',
                           style: TextStyle(
@@ -658,45 +658,47 @@ class _VideoPlayerItemState extends State<VideoPlayerItem> with SingleTickerProv
                         ),
                         const SizedBox(height: 16),
                         Expanded(
-                          child: ListView.builder(
-                            padding: const EdgeInsets.symmetric(horizontal: 16),
-                            itemCount: _recommendations!.length,
-                            itemBuilder: (context, index) {
-                              final recommendation = _recommendations![index];
-                              return ListTile(
-                                onTap: () => _handleRecommendationTap(recommendation),
-                                title: Text(
-                                  recommendation['title'] ?? '',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                                subtitle: Text(
-                                  recommendation['description'] ?? '',
-                                  style: const TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 14,
-                                  ),
-                                  maxLines: 2,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                                trailing: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Text(
-                                      '${recommendation['likes']} likes',
-                                      style: const TextStyle(color: Colors.white),
+                          child: SingleChildScrollView(
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(horizontal: 16),
+                              child: Column(
+                                children: _recommendations!.map((recommendation) {
+                                  return ListTile(
+                                    onTap: () => _handleRecommendationTap(recommendation),
+                                    title: Text(
+                                      recommendation['title'] ?? '',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.bold,
+                                      ),
                                     ),
-                                    Text(
-                                      '${recommendation['views']} views',
-                                      style: const TextStyle(color: Colors.white),
+                                    subtitle: Text(
+                                      recommendation['description'] ?? '',
+                                      style: const TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 14,
+                                      ),
+                                      maxLines: 2,
+                                      overflow: TextOverflow.ellipsis,
                                     ),
-                                  ],
-                                ),
-                              );
-                            },
+                                    trailing: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Text(
+                                          '${recommendation['likes']} likes',
+                                          style: const TextStyle(color: Colors.white),
+                                        ),
+                                        Text(
+                                          '${recommendation['views']} views',
+                                          style: const TextStyle(color: Colors.white),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }).toList(),
+                              ),
+                            ),
                           ),
                         ),
                       ],
